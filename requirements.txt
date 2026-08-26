@@ -1,0 +1,5 @@
+# 본 파이프라인(scripts/) — mp4 → perso 패키지
+faster-whisper
+
+# 자막 번역·검수 보조 — API 키 없이 `claude` CLI 로그인(OAuth)을 쓴다
+claude-agent-sdk

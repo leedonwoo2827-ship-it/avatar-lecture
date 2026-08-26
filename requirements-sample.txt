@@ -1,0 +1,4 @@
+# 샘플 도구(tools/sample/) — 재료 → dummy.mp4
+# piper 는 pip 이 아니라 setup_piper.ps1 이 실행 파일로 받는다
+# (윈도에서 piper-phonemize 빌드가 자주 막힌다)
+playwright

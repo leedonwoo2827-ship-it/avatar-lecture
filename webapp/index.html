@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>mp42perso</title>
+<meta name="description" content="강의 mp4 하나를 넣으면 perso 아바타에 올릴 조각 패키지가 나오는 로컬 콘솔" />
+<meta name="color-scheme" content="light" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23f0b429'/%3E%3Ctext x='16' y='22' font-family='sans-serif' font-size='15' font-weight='800' fill='%232b2a26' text-anchor='middle'%3EP%3C/text%3E%3C/svg%3E" />
+<!-- app.css 는 260820-html2VideoScripthtml 에서 그대로 가져온 것(브랜드 색만 갈았다),
+     pages.css 는 이 앱에서 더한 화면. 파일로 갈라 두어야 나중에 저쪽 디자인이
+     바뀌었을 때 어디까지가 가져온 것인지 알 수 있다. -->
+<link rel="stylesheet" href="/static/css/app.css" />
+<link rel="stylesheet" href="/static/css/pages.css" />
+</head>
+<body>
+<div class="app">
+
+  <!-- ══ 레일 — 무엇을 하는 앱인지, 그리고 지난 작업 ══════════════════════ -->
+  <nav class="rail" id="rail" aria-label="주 메뉴">
+    <div class="side-brand">
+      <!-- ★ 노란 사각형이 이 앱의 얼굴이다. 창을 여러 개 띄워도 눈으로 갈린다.
+           접었을 때는 이 사각형만 남는다 — 어느 앱인지는 계속 보여야 한다. -->
+      <span class="brand-mark" title="mp42perso">P</span>
+      <span class="brand-name">mp4 → perso</span>
+      <button class="rail-toggle" id="rail-toggle" type="button"
+              title="메뉴 접기 (Ctrl+B)" aria-label="메뉴 접기">
+        <span data-icon="panelLeft" data-icon-size="16"></span>
+      </button>
+    </div>
+
+
+    <ul class="side-nav" id="side-nav">
+      <li><a href="#/run" data-nav="run" title="새로 돌리기 — 강의 골라 s1~s7">
+        <span data-icon="film"></span><span>새로 돌리기 <em class="nav-dest">강의 골라 s1~s7</em></span></a></li>
+      <li><a href="#/subs" data-nav="subs" title="자막 다듬기 — SME 컨펌 반영">
+        <span data-icon="file"></span><span>자막 다듬기 <em class="nav-dest">SME 컨펌 반영</em></span></a></li>
+      <li><a href="#/cuts" data-nav="cuts" title="컷 옮기기 — 30분 한계 맞추기">
+        <span data-icon="slide"></span><span>컷 옮기기 <em class="nav-dest">30분 한계 맞추기</em></span></a></li>
+      <li><a href="#/out" data-nav="out" title="결과 — perso에 넘길 것">
+        <span data-icon="folder"></span><span>결과 <em class="nav-dest">perso에 넘길 것</em></span></a></li>
+    </ul>
+  </nav>
+
+  <!-- ══ 본문 ════════════════════════════════════════════════════════════ -->
+  <main class="main" id="main">
+
+    <!-- ── 새로 돌리기 ── -->
+    <section class="page" data-page="run">
+      <header class="page-head">
+        <h1>새로 돌리기</h1>
+      </header>
+
+      <div class="card wide">
+        <div class="pick-head">
+          <div class="card-t">강의 고르기</div>
+          <!-- ★ 내역은 여기 뜬다. 촘촘히 볼 때 타일 안에는 이름만 들어가는데,
+               영상이 있나 슬라이드가 몇 장인가는 여전히 알아야 한다. 타일마다
+               적으면 10열이 안 되고, 툴팁은 눈으로 훑을 수 없다. 그래서 짚은
+               타일의 내역을 **제목 옆 한 자리**에 띄운다. -->
+          <span class="pick-detail" id="pick-detail"></span>
+          <div class="pick-view">
+            <button type="button" id="pv-card" aria-pressed="true">카드</button>
+            <button type="button" id="pv-dense" aria-pressed="false">촘촘히</button>
+          </div>
+        </div>
+        <ul id="bundle-list" class="pick-list"><li class="job-empty">읽는 중…</li></ul>
+      </div>
+
+      <div class="card">
+        <div class="card-t">설정</div>
+        <div class="opt-row">
+          <label>음성 언어
+            <select id="opt-lang">
+              <option value="ru" selected>러시아어 (ru)</option>
+              <option value="uz">우즈벡어 (uz)</option>
+              <option value="ko">한국어 (ko)</option>
+              <option value="en">영어 (en)</option>
+            </select>
+          </label>
+          <label>음성인식 모델
+            <select id="opt-model">
+              <option value="small" selected>small — 빠름</option>
+              <option value="medium">medium — 정확, 오래</option>
+            </select>
+          </label>
+        </div>
+        <p class="card-h">기본은 러시아어입니다. 자막과 컷이 전부 이 전사 위에 얹힙니다.</p>
+      </div>
+
+      <div class="run-bar">
+        <span class="run-note" id="run-note">강의를 고르세요.</span>
+        <button class="btn-ink" id="btn-run" type="button" disabled>
+          <span data-icon="arrowRight" data-icon-size="15"></span><span>돌리기</span>
+        </button>
+      </div>
+
+      <div class="card" id="prog-card" hidden>
+        <div class="card-t">진행</div>
+        <ol class="steps" id="steps"></ol>
+      </div>
+    </section>
+
+    <!-- ── 자막 다듬기 ── -->
+    <section class="page" data-page="subs" hidden>
+      <header class="page-head">
+        <h1>자막 다듬기</h1>
+        <p class="page-sub"><b>타임코드는 건드리지 않습니다</b> — 본문만 고칩니다. 글자 수를 넘긴 줄은 노랗게 뜹니다.</p>
+      </header>
+      <div class="sub-bar">
+        <select id="sub-ws"></select>
+        <select id="sub-file"></select>
+        <span class="sub-stat" id="sub-stat"></span>
+        <button class="btn-ink" id="btn-sub-save" type="button">
+          <span data-icon="check" data-icon-size="15"></span><span>저장</span></button>
+      </div>
+      <div class="cue-wrap"><ul class="cue-list" id="cue-list"></ul></div>
+    </section>
+
+    <!-- ── 컷 옮기기 ── -->
+    <section class="page" data-page="cuts" hidden>
+      <header class="page-head">
+        <h1>컷 옮기기</h1>
+        <p class="page-sub">조각이 <b>28분</b>을 넘으면 안 됩니다. 고친 뒤 s6부터 다시 돌리면 반영됩니다.</p>
+      </header>
+      <div class="sub-bar">
+        <select id="cut-ws"></select>
+        <button class="btn-ink" id="btn-cut-save" type="button">
+          <span data-icon="check" data-icon-size="15"></span><span>저장</span></button>
+      </div>
+      <div id="cut-list" class="cut-list"></div>
+    </section>
+
+    <!-- ── 결과 ── -->
+    <section class="page" data-page="out" hidden>
+      <header class="page-head">
+        <h1>결과</h1>
+        <p class="page-sub"><b><code>06\perso\</code> 만 밖으로 나갑니다.</b> <code>_preview\</code> 는 검수용입니다.</p>
+      </header>
+      <div id="out-list"></div>
+    </section>
+
+  </main>
+  <!-- ══ 오른쪽 서랍 — 폴더마다 진행 현황 ═════════════════════════════════
+       120강이 쌓이면 이 목록이 이 앱의 본체가 된다. 그래서 여기에만 검색을 둔다.
+       레일과 따로 접힌다 — 자막을 다듬을 때는 넓게 쓰고 싶고, 배치를 돌릴 때는
+       현황을 계속 보고 싶다. 둘의 필요가 달라서 접기도 따로다. -->
+  <aside class="drawer" id="drawer" aria-label="작업 현황">
+    <div class="drawer-head">
+      <button class="drawer-toggle" id="drawer-toggle" type="button"
+              title="현황 접기 (Ctrl+J)" aria-label="현황 접기">
+        <span data-icon="panelRight" data-icon-size="16"></span>
+      </button>
+      <span class="drawer-title">작업 현황</span>
+      <span class="drawer-count" id="drawer-count"></span>
+    </div>
+    <div class="drawer-body">
+      <input type="text" id="job-filter" class="drawer-filter"
+             placeholder="찾기" />
+      <ul id="job-list" class="job-list"><li class="job-empty">아직 없습니다</li></ul>
+    </div>
+  </aside>
+
+</div>
+
+<!-- ══ 아래 도크 — 터미널 기록 ══════════════════════════════════════════════
+     .app 밖에 둔다. 화면(돌리기·자막·컷·결과)을 옮겨도 언마운트되지 않아야
+     돌고 있는 로그가 끊기지 않는다. 접으면 한 줄짜리 띠만 남는다. -->
+<section class="dock" id="dock" hidden aria-label="기록">
+  <button class="dock-head" id="dock-toggle" type="button">
+    <span data-icon="terminal" data-icon-size="14"></span>
+    <span class="dock-title">기록</span>
+    <span class="dock-now" id="dock-now"></span>
+    <span class="dock-chev" data-icon="chevronDown" data-icon-size="14"></span>
+  </button>
+  <pre class="log" id="log"></pre>
+</section>
+
+<div class="toast-host" id="toast-host"></div>
+<script type="module" src="/static/js/main.js"></script>
+</body>
+</html>
