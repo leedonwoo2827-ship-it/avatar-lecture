@@ -153,7 +153,7 @@ code {
 }
 
 /* ── 강의 고르기 ── */
-/* 120강이 쌓이면 한 줄에 하나로는 화면이 끝없이 길어진다. 3열로 깐다.
+/* 강의가 쌓이면 한 줄에 하나로는 화면이 끝없이 길어진다. 3열로 깐다.
    화면이 좁아지면 auto-fill 이 알아서 2열·1열로 접는다. */
 .pick-list {
   list-style: none; margin: 0; padding: 0;
@@ -324,7 +324,7 @@ select, input[type="text"] {
 }
 
 /* ══ 오른쪽 서랍 — 작업 현황 ════════════════════════════════════════════
-   120강이 쌓이면 이 목록이 이 앱의 본체가 된다. 그래서 검색은 여기에만 둔다. */
+   강의가 쌓이면 이 목록이 이 앱의 본체가 된다. 그래서 검색은 여기에만 둔다. */
 .drawer {
   background: var(--bone);
   box-shadow: inset 1px 0 0 var(--hairline);
@@ -408,9 +408,9 @@ body.dock-min .dock .log { display: none; }
 }
 
 /* ══ 강의 고르기 — 촘촘히 보기 ══════════════════════════════════════════
-   120강이 되면 카드 3열로는 화면이 40줄이 된다. 그래서 두 모드를 둔다.
-     기본     3열 카드 — 영상·슬라이드·문제가 보인다. 몇 개일 때 쓴다.
-     촘촘히   10열 타일 — 120강이 10×12로 한 화면에 들어온다.
+   강의가 100개를 넘으면 카드 3열로는 화면이 40줄이 된다. 그래서 두 모드를 둔다.
+     기본     3열 카드 — 강의가 몇 개일 때
+     촘촘히   12열 타일 — 120강대가 12×11 로 한 화면에 들어온다.
    촘촘히에서는 이름을 줄여 앞자리만 남긴다. 전체 이름은 title 로 뜬다.
    ★ 상태는 색이 아니라 **점**으로 준다. 타일이 작아서 배경색을 쓰면 노랑(고름)
      과 상태색이 뒤섞여 뭐가 뭔지 모른다. */
@@ -429,7 +429,7 @@ body.dock-min .dock .log { display: none; }
 /* ★ 점은 두 모드 모두 **오른쪽 끝**이다. 촘촘히에서 점을 이름 아래로 내리면
       한 줄이 두 줄이 되어 격자 높이가 두 배가 되고, 무엇보다 눈이 점을 찾는
       자리가 모드마다 달라진다. 자리를 하나로 못 박는다. */
-.pick-list.dense { grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 5px; }
+.pick-list.dense { grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 5px; }
 .pick-list.dense button { padding: 9px 9px; border-radius: 8px; gap: 6px; }
 .pick-list.dense .pick-name { font-size: 11.5px; font-weight: 700; }
 .pick-list.dense .tile-dot { width: 6px; height: 6px; }
@@ -437,11 +437,13 @@ body.dock-min .dock .log { display: none; }
 /* 촘촘히에서는 카드가 넓어야 10열이 산다 */
 .card.wide { max-width: 1180px; }
 
+/* 좁아지면 열을 줄인다. 타일 폭이 60px 아래로 내려가면 `121강` 이 잘려서
+   번호를 못 읽는다 — 그 선을 넘기지 않는 값들이다. */
 @media (max-width: 1500px) {
-  .pick-list.dense { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .pick-list.dense { grid-template-columns: repeat(8, minmax(0, 1fr)); }
 }
 @media (max-width: 1100px) {
-  .pick-list.dense { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .pick-list.dense { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 
 /* 짚은 타일의 내역 — 제목 옆 한 자리. 촘촘히 볼 때 타일에서 뺀 정보가 여기 온다. */
