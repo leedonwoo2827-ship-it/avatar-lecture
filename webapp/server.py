@@ -32,16 +32,21 @@ PY = ROOT / ".venv" / "Scripts" / "python.exe"
 MATERIAL = ROOT / "재료"
 OUTPUT = ROOT / "output"
 
-# 파이프라인 단계 — 화면의 진행 표시와 순서가 같다
+# 파이프라인 단계 — 화면의 진행 표시와 순서가 같다.
+# ★ s3b(자막 번역)는 **자막 언어가 음성 언어와 다를 때만** 돈다. 같으면 건너뛴다.
 STEPS = [
-    ("s1", "영상 받기", "s1_ingest.py"),
-    ("s2", "전사", "s2_transcribe.py"),
-    ("s3", "자막 만들기", "s3_cue.py"),
-    ("s4", "perso 분할", "s4_split.py"),
-    ("s5", "씬 매핑", "s5_scene_map.py"),
-    ("s6", "패키지", "s6_package.py"),
-    ("s7", "검수본", "s7_preview.py"),
+    ("s1", "영상 받기"),
+    ("s2", "전사"),
+    ("s3", "자막 만들기"),
+    ("s3b", "자막 번역"),
+    ("s4", "perso 분할"),
+    ("s5", "씬 매핑"),
+    ("s6", "패키지"),
+    ("s7", "검수본"),
 ]
+# 오른쪽 서랍의 막대 — 워크스페이스 폴더만 보고 판단할 수 있는 단계들.
+# s3b 는 자막 언어를 알아야 판단이 되므로 여기 넣지 않는다.
+DOT_STEPS = [(k, l) for k, l in STEPS if k != "s3b"]
 
 # 단계가 끝났는지 판단할 자리 — 워크스페이스 안의 이 파일이 있으면 끝난 것으로 본다
 DONE_MARK = {
@@ -59,6 +64,8 @@ class Job:
         self.running = False
         self.failed = False
         self.ws: str = ""
+        self.lang: str = ""
+        self.sub_lang: str = ""
         self._lock = threading.Lock()
 
     def log(self, line: str) -> None:
@@ -69,7 +76,8 @@ class Job:
         with self._lock:
             return {"lines": self.lines[since:], "total": len(self.lines),
                     "step": self.step, "running": self.running,
-                    "failed": self.failed, "ws": self.ws}
+                    "failed": self.failed, "ws": self.ws,
+                    "lang": self.lang, "sub_lang": self.sub_lang}
 
 
 JOB = Job()
@@ -82,22 +90,33 @@ def latest_ws() -> Path | None:
     return dirs[-1] if dirs else None
 
 
-def run_pipeline(bundle: str, lang: str, model: str) -> None:
-    """백그라운드 스레드에서 s1~s7을 순서대로 돌리고 로그를 JOB에 쌓는다."""
+def run_pipeline(bundle: str, lang: str, sub_lang: str, model: str) -> None:
+    """백그라운드 스레드에서 순서대로 돌리고 로그를 JOB 에 쌓는다.
+
+    `lang` 은 **음성** 언어(전사할 언어), `sub_lang` 은 **자막** 언어다. 둘이
+    다르면 s3b 가 s3 의 자막을 번역해 같은 타임코드에 얹는다 — 대본 단계에서
+    만든 자막을 쓰면 실제 음성과 어긋나기 때문이다.
+    """
     JOB.lines.clear()
     JOB.running, JOB.failed, JOB.ws = True, False, ""
+    JOB.lang, JOB.sub_lang = lang, sub_lang
+    translate = sub_lang != lang
     args_for = {
         "s1": ["scripts/s1_ingest.py", bundle],
         "s2": ["scripts/s2_transcribe.py", "--lang", lang, "--model", model],
         "s3": ["scripts/s3_cue.py", "--lang", lang],
+        "s3b": ["scripts/s3b_relabel.py", "--translate", "--from", lang, "--to", sub_lang],
         "s4": ["scripts/s4_split.py", "--lang", lang],
         "s5": ["scripts/s5_scene_map.py"],
-        "s6": ["scripts/s6_package.py", "--sub-lang", lang],
-        "s7": ["scripts/s7_preview.py", "--sub-lang", lang, "--limit", "60"],
+        "s6": ["scripts/s6_package.py", "--sub-lang", sub_lang],
+        "s7": ["scripts/s7_preview.py", "--sub-lang", sub_lang, "--limit", "60"],
     }
     try:
-        for key, label, _ in STEPS:
+        for key, label in STEPS:
             JOB.step = key
+            if key == "s3b" and not translate:
+                JOB.log(f"[{key}] {label} — 음성과 자막이 같은 언어라 건너뜁니다")
+                continue
             JOB.log(f"[{key}] {label}")
             p = subprocess.Popen([str(PY)] + args_for[key], cwd=str(ROOT),
                                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -114,7 +133,7 @@ def run_pipeline(bundle: str, lang: str, model: str) -> None:
                 JOB.ws = ws.name
         JOB.step = "check"
         JOB.log("[검사] 규칙을 지켰는지 확인")
-        p = subprocess.run([str(PY), "scripts/check.py", "--sub-lang", lang],
+        p = subprocess.run([str(PY), "scripts/check.py", "--sub-lang", sub_lang],
                            cwd=str(ROOT), capture_output=True, text=True,
                            encoding="utf-8", errors="replace")
         for line in (p.stdout or "").splitlines():
@@ -204,6 +223,94 @@ def write_cues(ws: Path, name: str, rows: list[dict]) -> int:
     return len(cues)
 
 
+
+# ══ Claude 연결 ═════════════════════════════════════════════════════════════
+
+def claude_status() -> dict:
+    """자막 번역(s3b --translate)에 쓰는 Claude 연결 상태.
+
+    **API 키를 쓰지 않는다.** `claude` CLI 로 로그인해 둔 세션(OAuth)을 그대로
+    쓴다 — llm/claude_provider.py 가 환경변수의 ANTHROPIC_API_KEY 를 일부러
+    빈 문자열로 덮기 때문이다(오래된 export 가 OAuth 를 가로채 남의 계정에
+    과금되는 것을 막는 장치).
+
+    계정 정보는 `claude auth status --json` 이 그대로 준다 — 파일을 뜯어보지
+    않는다. CLI 가 답하는 것이 사실이다.
+    """
+    out = {"ok": False, "cli": False, "login": False, "sdk": False,
+           "path": None, "api_key_env": False, "email": "", "org": "",
+           "plan": "", "method": "", "why": ""}
+
+    exe = None
+    try:
+        from llm.claude_provider import status
+        st = status()
+        out["cli"] = bool(st.get("installed"))
+        out["path"] = st.get("path")
+        out["api_key_env"] = bool(st.get("api_key_env"))
+        exe = st.get("path")
+    except Exception as e:  # noqa: BLE001 — 상태 조회가 화면을 막지 않게
+        out["why"] = f"상태를 읽지 못했습니다: {e}"
+        return out
+
+    if exe:
+        try:
+            r = subprocess.run([exe, "auth", "status", "--json"],
+                               capture_output=True, text=True, timeout=20,
+                               encoding="utf-8", errors="replace")
+            info = json.loads((r.stdout or "").strip() or "{}")
+            out["login"] = bool(info.get("loggedIn"))
+            out["email"] = info.get("email") or ""
+            out["org"] = info.get("orgName") or ""
+            out["plan"] = info.get("subscriptionType") or ""
+            out["method"] = info.get("authMethod") or ""
+        except Exception:  # noqa: BLE001 — 로그인 안 됐을 때도 여기로 온다
+            pass
+
+    try:
+        import claude_agent_sdk  # noqa: F401
+        out["sdk"] = True
+    except ImportError:
+        pass
+
+    if not out["cli"]:
+        out["why"] = "claude 실행 파일을 찾지 못했습니다"
+    elif not out["login"]:
+        out["why"] = "로그인이 안 되어 있습니다"
+    elif not out["sdk"]:
+        out["why"] = "claude-agent-sdk 가 설치되지 않았습니다"
+    else:
+        out["ok"] = True
+        out["why"] = "쓸 수 있습니다"
+    return out
+
+
+# 콘솔 창에서 돌릴 명령. 웹 화면이 로그인을 대신할 수는 없다 — OAuth 는 브라우저와
+# CLI 가 주고받는 것이고 중간에서 토큰을 만지면 안 된다. 그래서 **창만 열어 준다.**
+CLAUDE_ACTS = {
+    "login":  ("auth", "login"),
+    "logout": ("auth", "logout"),
+    "switch": ("auth", "login"),   # 로그아웃 뒤 로그인 — 아래에서 둘을 잇는다
+}
+
+
+def open_claude_console(act: str) -> bool:
+    """로그인·로그아웃할 콘솔 창을 띄운다. 사람이 마치면 '다시 확인'을 누른다."""
+    st = claude_status()
+    exe = st.get("path")
+    if not exe or act not in CLAUDE_ACTS:
+        return False
+    q = chr(34)
+    if act == "switch":
+        cmd = f"{q}{exe}{q} auth logout & {q}{exe}{q} auth login"
+    else:
+        sub = " ".join(CLAUDE_ACTS[act])
+        cmd = f"{q}{exe}{q} {sub}"
+    # /k 로 창을 남긴다 — 실패했을 때 메시지를 읽을 수 있어야 한다
+    subprocess.Popen(["cmd", "/c", "start", "cmd", "/k", cmd])
+    return True
+
+
 # ══ HTTP ════════════════════════════════════════════════════════════════════
 
 class Handler(BaseHTTPRequestHandler):
@@ -276,7 +383,10 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/state":
             return self._json({"bundles": bundle_rows(), "jobs": job_rows(),
-                               "steps": [{"key": k, "label": l} for k, l, _ in STEPS]})
+                               "steps": [{"key": k, "label": l} for k, l in STEPS],
+                               "dotSteps": [{"key": k, "label": l} for k, l in DOT_STEPS]})
+        if path == "/api/claude":
+            return self._json(claude_status())
         if path == "/api/log":
             since = int((q.get("since") or ["0"])[0])
             return self._json(JOB.snapshot(since))
@@ -313,8 +423,10 @@ class Handler(BaseHTTPRequestHandler):
             if not bundle or not Path(bundle).is_dir():
                 return self._json({"error": "번들 폴더를 고르세요"}, 400)
             lang = body.get("lang") or "ru"
+            sub_lang = body.get("sub_lang") or lang
             model = body.get("model") or "small"
-            threading.Thread(target=run_pipeline, args=(bundle, lang, model),
+            threading.Thread(target=run_pipeline,
+                             args=(bundle, lang, sub_lang, model),
                              daemon=True).start()
             time.sleep(0.2)
             return self._json({"ok": True})
@@ -342,6 +454,13 @@ class Handler(BaseHTTPRequestHandler):
                              "cue_to": int(r.get("cue_to", 0))})
             save_json(ws / "04" / "chunks.json", rows)
             return self._json({"ok": True, "saved": len(rows)})
+
+        if path == "/api/claude-act":
+            act = body.get("act") or ""
+            if not open_claude_console(act):
+                return self._json({"error": "그 동작을 할 수 없습니다 "
+                                            "(claude 실행 파일을 찾지 못했을 수 있습니다)"}, 400)
+            return self._json({"ok": True})
 
         if path == "/api/open":
             target = Path(body.get("path") or "")

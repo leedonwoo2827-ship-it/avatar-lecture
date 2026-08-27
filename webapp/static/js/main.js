@@ -75,8 +75,11 @@ async function refresh() {
  * 촘촘히에서 타일 라벨은 폴더 이름 앞의 `NNN강` 만 남긴다. 이름을 다 넣으면
  * 10열이 안 된다. 전체 이름은 title 로 뜬다.
  */
+/* 타일 라벨은 **번호만**이다. 폴더 이름이 `121강` 이든 `121샘플` 이든 앞의 숫자가
+   곧 그 강의다. 12열에서 타일 폭이 72px 뿐이라 뒤에 뭐라도 붙으면 잘려서
+   번호를 못 읽는다 — 전체 이름은 제목 옆 내역과 title 로 본다. */
 const tileLabel = (name) => {
-  const m = /^(\d+\s*강)/.exec(name);
+  const m = /^(\d+)/.exec(name);
   return m ? m[1] : name;
 };
 
@@ -163,12 +166,15 @@ function drawJobs() {
     btn.title = j.name;
     btn.setAttribute("aria-current", String(curWs === j.name));
     // 막대에 단계 이름을 달아 둔다 — 설명문을 화면에 두지 않아도 뜻을 잃지 않는다
-    const dots = STATE.steps
+    // 막대는 폴더만 보고 판단할 수 있는 단계들(s1~s7). s3b 는 자막 언어를
+    // 알아야 판단이 되므로 여기서 빼 둔다.
+    const ds = STATE.dotSteps || STATE.steps;
+    const dots = ds
       .map((st) => `<i class="${j.steps[st.key] ? "on" : ""}" ` +
                    `title="${st.key} ${st.label}"></i>`).join("");
-    const done = STATE.steps.filter((st) => j.steps[st.key]).length;
+    const done = ds.filter((st) => j.steps[st.key]).length;
     const meta = j.duration
-      ? `${mmss(j.duration)} · 조각 ${j.chunks.length}개 · ${done}/${STATE.steps.length}단계`
+      ? `${mmss(j.duration)} · 조각 ${j.chunks.length}개 · ${done}/${ds.length}단계`
       : "돌리는 중";
     btn.innerHTML = `<span class="job-name">${j.name}</span>` +
       `<span class="job-meta">${meta}</span><span class="dots">${dots}</span>`;
@@ -237,7 +243,8 @@ $("#btn-run").onclick = async () => {
   $("#run-note").textContent = "돌고 있습니다. 전사가 가장 오래 걸립니다.";
   try {
     await post("/api/run", {
-      bundle: picked, lang: $("#opt-lang").value, model: $("#opt-model").value,
+      bundle: picked, lang: $("#opt-lang").value,
+      sub_lang: $("#opt-sub").value, model: $("#opt-model").value,
     });
   } catch (e) {
     $("#btn-run").disabled = false;
@@ -498,7 +505,106 @@ if (localStorage.getItem("pickDense") === "1") {
   $("#pv-dense").setAttribute("aria-pressed", "true");
 }
 
+
+
+/* ── 고른 언어를 문장으로 다시 읽어 주기 ───────────────────
+ * select 두 개를 눈으로 견주면 어느 쪽이 음성이고 어느 쪽이 자막인지 매번 다시
+ * 생각하게 된다. 그래서 고른 값을 문장으로 한 번 더 말한다.
+ */
+const LANG_NAME = { ru: "러시아어", uz: "우즈벡어", ko: "한국어", en: "영어" };
+
+function drawSay() {
+  const a = $("#opt-lang").value, b = $("#opt-sub").value;
+  const m = $("#opt-model").value;
+  const same = a === b;
+  $("#opt-say").innerHTML =
+    `영상에서 <b>${LANG_NAME[a]}</b>를 듣고 <span class="arrow">→</span> ` +
+    `자막은 <b>${LANG_NAME[b]}</b>로 만듭니다.` +
+    (same
+      ? " 같은 언어라 번역 단계(s3b)는 건너뜁니다."
+      : ` 번역은 <b>Claude</b>가 초벌을 만듭니다 — 타임코드는 그대로 두고 본문만 갈아끼웁니다.`) +
+    ` 전사 모델은 <b>${m}</b>.` +
+    (!same && !(CONN && CONN.ok)
+      ? ' <b style="color:var(--err)">Claude 연결이 안 되어 있어 번역 단계에서 멈춥니다.</b>'
+      : "");
+}
+for (const id of ["#opt-lang", "#opt-sub", "#opt-model"]) $(id).onchange = drawSay;
+
+/* ── Claude 연결 ────────────────────────────────────────────
+ * 자막 번역(s3b)에만 쓰인다. s1~s7 은 이것 없이도 다 돈다.
+ * 로그인 자체는 화면이 못 한다 — OAuth 는 브라우저와 CLI 가 주고받는 것이라
+ * 중간에서 토큰을 만지면 안 된다. 그래서 콘솔 창을 열어 주고, 사람이 마치면
+ * '다시 확인'을 누른다.
+ */
+let CONN = null;
+
+function drawConn() {
+  const c = CONN;
+  const dot = $("#conn-dot");
+  dot.className = "conn-dot" + (
+    !c ? "" : c.ok ? " ok" : (c.cli ? " warn" : " bad"));
+  $("#conn-t1").textContent = !c ? "확인 중…" : (c.ok ? "Claude 연결됨" : "Claude 연결 안 됨");
+  $("#conn-t2").textContent = !c ? "" : (c.ok ? (c.email || c.method || "") : c.why);
+  $("#conn-btn").title = !c ? "Claude 연결 상태" : `Claude — ${c.why}`;
+
+  const rows = $("#conn-rows");
+  if (!rows) return;
+  const yn = (v, yes, no) => v
+    ? `<dd>${yes}</dd>`
+    : `<dd class="no">${no}</dd>`;
+  rows.innerHTML = !c ? "" : [
+    `<div><dt>실행 파일</dt>${yn(c.cli, "찾음", "못 찾음")}</div>`,
+    `<div><dt>로그인</dt>${c.login
+      ? `<dd>${c.email || "로그인됨"}</dd>`
+      : `<dd class="hold">안 되어 있음</dd>`}</div>`,
+    c.login && c.org ? `<div><dt>조직</dt><dd>${c.org}${c.plan ? " · " + c.plan : ""}</dd></div>` : "",
+    `<div><dt>파이썬 붙임</dt>${yn(c.sdk, "claude-agent-sdk 있음",
+      "claude-agent-sdk 없음 — setup.bat 을 다시 돌리세요")}</div>`,
+    c.api_key_env
+      ? `<div><dt>API 키</dt><dd class="hold">환경변수에 있음 — 파이프라인은 무시합니다</dd></div>`
+      : "",
+    c.path ? `<div><dt>경로</dt><dd style="font-weight:500;font-size:11.5px">${c.path}</dd></div>` : "",
+  ].filter(Boolean).join("");
+}
+
+async function loadConn() {
+  try { CONN = await api("/api/claude"); } catch { CONN = null; }
+  drawConn();
+  drawSay();   // 번역이 필요한데 연결이 없으면 그 경고가 문장에 붙는다
+}
+
+function openConn(on) {
+  $("#conn-scrim").hidden = !on;
+  $("#conn-sheet").hidden = !on;
+  if (on) loadConn();
+}
+$("#conn-btn").onclick = () => openConn(true);
+$("#conn-close").onclick = () => openConn(false);
+$("#conn-scrim").onclick = () => openConn(false);
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !$("#conn-sheet").hidden) openConn(false);
+});
+$("#conn-refresh").onclick = async () => {
+  await loadConn();
+  toast(CONN && CONN.ok ? "연결됐습니다" : (CONN ? CONN.why : "확인하지 못했습니다"),
+        !(CONN && CONN.ok));
+};
+for (const [id, act, label] of [
+  ["#conn-login", "login", "로그인"],
+  ["#conn-switch", "switch", "다른 계정으로"],
+  ["#conn-logout", "logout", "로그아웃"],
+]) {
+  $(id).onclick = async () => {
+    try {
+      await post("/api/claude-act", { act });
+      toast(`콘솔 창을 열었습니다 — ${label}을 마친 뒤 '다시 확인'을 누르세요`);
+    } catch (e) { toast(e.message, true); }
+  };
+}
+
 /* ── 시작 ──────────────────────────────────────────────────── */
 window.addEventListener("hashchange", route);
 hydrateIcons(document);
+drawSay();
 refresh().then(route).catch((e) => toast(e.message, true));
+loadConn();

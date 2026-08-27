@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>mp42perso</title>
+<title>recmaker2perso</title>
 <meta name="description" content="강의 mp4 하나를 넣으면 perso 아바타에 올릴 조각 패키지가 나오는 로컬 콘솔" />
 <meta name="color-scheme" content="light" />
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23f0b429'/%3E%3Ctext x='16' y='22' font-family='sans-serif' font-size='15' font-weight='800' fill='%232b2a26' text-anchor='middle'%3EP%3C/text%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23f0b429'/%3E%3Ctext x='16' y='21' font-family='sans-serif' font-size='11' font-weight='800' fill='%232b2a26' text-anchor='middle'%3EREC%3C/text%3E%3C/svg%3E" />
 <!-- app.css 는 260820-html2VideoScripthtml 에서 그대로 가져온 것(브랜드 색만 갈았다),
      pages.css 는 이 앱에서 더한 화면. 파일로 갈라 두어야 나중에 저쪽 디자인이
      바뀌었을 때 어디까지가 가져온 것인지 알 수 있다. -->
@@ -21,8 +21,8 @@
     <div class="side-brand">
       <!-- ★ 노란 사각형이 이 앱의 얼굴이다. 창을 여러 개 띄워도 눈으로 갈린다.
            접었을 때는 이 사각형만 남는다 — 어느 앱인지는 계속 보여야 한다. -->
-      <span class="brand-mark" title="mp42perso">P</span>
-      <span class="brand-name">mp4 → perso</span>
+      <span class="brand-mark" title="recmaker2perso">REC</span>
+      <span class="brand-name">Maker 2 perso</span>
       <button class="rail-toggle" id="rail-toggle" type="button"
               title="메뉴 접기 (Ctrl+B)" aria-label="메뉴 접기">
         <span data-icon="panelLeft" data-icon-size="16"></span>
@@ -40,6 +40,17 @@
       <li><a href="#/out" data-nav="out" title="결과 — perso에 넘길 것">
         <span data-icon="folder"></span><span>결과 <em class="nav-dest">perso에 넘길 것</em></span></a></li>
     </ul>
+
+    <!-- ══ 레일 맨 아래 — Claude 연결 ═══════════════════════════════════════
+         자막 번역(s3b)에만 쓰인다. s1~s7 은 이것 없이도 다 돈다 — 그래서 위쪽
+         메뉴가 아니라 **맨 아래**다. 늘 보이지만 눈이 먼저 가지는 않는 자리. -->
+    <button class="conn" id="conn-btn" type="button" title="Claude 연결 상태">
+      <span class="conn-dot" id="conn-dot"></span>
+      <span class="conn-text">
+        <span class="conn-t1" id="conn-t1">확인 중…</span>
+        <span class="conn-t2" id="conn-t2"></span>
+      </span>
+    </button>
   </nav>
 
   <!-- ══ 본문 ════════════════════════════════════════════════════════════ -->
@@ -70,7 +81,7 @@
       <div class="card">
         <div class="card-t">설정</div>
         <div class="opt-row">
-          <label>음성 언어
+          <label>음성 언어 <em>영상에서 들리는 말</em>
             <select id="opt-lang">
               <option value="ru" selected>러시아어 (ru)</option>
               <option value="uz">우즈벡어 (uz)</option>
@@ -78,14 +89,24 @@
               <option value="en">영어 (en)</option>
             </select>
           </label>
-          <label>음성인식 모델
+          <label>자막 언어 <em>화면에 뜨는 글자</em>
+            <select id="opt-sub">
+              <option value="uz" selected>우즈벡어 (uz)</option>
+              <option value="ru">러시아어 (ru)</option>
+              <option value="ko">한국어 (ko)</option>
+              <option value="en">영어 (en)</option>
+            </select>
+          </label>
+          <label>음성인식 모델 <em>전사 정확도</em>
             <select id="opt-model">
               <option value="small" selected>small — 빠름</option>
               <option value="medium">medium — 정확, 오래</option>
             </select>
           </label>
         </div>
-        <p class="card-h">기본은 러시아어입니다. 자막과 컷이 전부 이 전사 위에 얹힙니다.</p>
+        <!-- ★ 고른 값을 문장으로 다시 읽어 준다. select 두 개를 눈으로 견주면
+             어느 쪽이 음성이고 어느 쪽이 자막인지 매번 다시 생각하게 된다. -->
+        <p class="opt-say" id="opt-say"></p>
       </div>
 
       <div class="run-bar">
@@ -162,6 +183,42 @@
   </aside>
 
 </div>
+
+<!-- ══ Claude 연결 패널 ═════════════════════════════════════════════════════
+     로그인 자체는 여기서 못 한다 — OAuth 는 브라우저와 CLI 가 주고받는 것이고
+     중간에서 토큰을 만지면 안 된다. 그래서 **콘솔 창을 열어 준다.** 사람이 그
+     창에서 마치면 '다시 확인' 을 누른다. -->
+<div class="scrim" id="conn-scrim" hidden></div>
+<section class="sheet" id="conn-sheet" hidden aria-label="Claude 연결">
+  <header class="sheet-head">
+    <h2>Claude 연결</h2>
+    <button class="sheet-x" id="conn-close" type="button" aria-label="닫기">
+      <span data-icon="x" data-icon-size="16"></span>
+    </button>
+  </header>
+
+  <p class="sheet-why">
+    <b>자막 번역에만 쓰입니다.</b> s1~s7 은 이것 없이도 다 돕니다.
+    API 키를 쓰지 않고 <code>claude</code> CLI 로 로그인해 둔 세션을 그대로 씁니다.
+  </p>
+
+  <dl class="conn-rows" id="conn-rows"></dl>
+
+  <div class="sheet-acts">
+    <button class="btn-ink" id="conn-refresh" type="button">
+      <span data-icon="refresh" data-icon-size="15"></span><span>다시 확인</span></button>
+    <button class="btn-plain" id="conn-login" type="button">
+      <span data-icon="arrowRight" data-icon-size="14"></span><span>로그인</span></button>
+    <button class="btn-plain" id="conn-switch" type="button">
+      <span data-icon="refresh" data-icon-size="14"></span><span>다른 계정으로</span></button>
+    <button class="btn-plain" id="conn-logout" type="button">
+      <span data-icon="x" data-icon-size="14"></span><span>로그아웃</span></button>
+  </div>
+
+  <p class="sheet-note">
+    누르면 <b>콘솔 창</b>이 열립니다. 그 창에서 안내를 마친 뒤 <b>다시 확인</b>을 누르세요.
+  </p>
+</section>
 
 <!-- ══ 아래 도크 — 터미널 기록 ══════════════════════════════════════════════
      .app 밖에 둔다. 화면(돌리기·자막·컷·결과)을 옮겨도 언마운트되지 않아야

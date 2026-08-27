@@ -76,13 +76,19 @@ body.rail-off .side-brand { flex-direction: column; gap: 8px; }
 body.rail-off .rail-toggle { margin-left: 0; }
 body.rail-off .side-nav a { justify-content: center; padding: 10px 0; }
 body.rail-off .side-nav a > span:last-child { display: none; }
+/* ★ 마크가 세 글자(REC)라 정사각형으로는 안 들어간다. 폭을 글자에 맞추고
+      높이만 고정한다. 접었을 때 레일 폭이 62px 인데 좌우 여백 20px 을 빼면
+      42px 이 남으니, 그 안에 들어가는 크기여야 한다. */
 .rail .brand-mark {
-  display: grid; place-items: center;
-  width: 30px; height: 30px; border-radius: 9px;
+  display: grid; place-items: center; flex: none;
+  height: 26px; padding: 0 7px; border-radius: 8px;
   background: var(--yellow); color: var(--yellow-ink);
-  font-weight: 800; font-size: 15px; letter-spacing: -.02em;
+  font-weight: 800; font-size: 11.5px; letter-spacing: .01em;
 }
-.rail .brand-name { color: var(--ink); font-weight: 700; font-size: 14.5px; }
+.rail .brand-name {
+  color: var(--ink); font-weight: 700; font-size: 14.5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 
 .rail-what {
   margin: 14px 4px 18px;
@@ -472,3 +478,97 @@ body.dock-min .dock .log { display: none; }
 }
 .pick-list .tile-dot.no-slides { background: var(--yellow); }
 .pick-list .tile-dot.bad { background: var(--err); }
+
+/* ══ 레일 맨 아래 — Claude 연결 ══════════════════════════════════════════
+   자막 번역(s3b)에만 쓰인다. s1~s7 은 이것 없이도 다 도니까 위쪽 메뉴가 아니라
+   맨 아래다 — 늘 보이지만 눈이 먼저 가지는 않는 자리.
+   ★ 점 색은 세 가지뿐이다. 초록(쓸 수 있음) · 노랑(로그인만 하면 됨) ·
+     빨강(실행 파일이 없음). 노랑이 "사람이 손쓰면 된다" 는 뜻이라 브랜드색과
+     같은 식구인 것이 여기서도 맞다. */
+.rail { position: relative; }
+.conn {
+  margin-top: auto; width: 100%; cursor: pointer; border: 0; background: none;
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 10px; border-radius: 9px; text-align: left;
+  box-shadow: inset 0 0 0 1px var(--hairline-2);
+}
+.conn:hover { background: var(--paper); box-shadow: inset 0 0 0 1px var(--hairline); }
+.conn-dot {
+  width: 8px; height: 8px; border-radius: 999px; flex: none;
+  background: rgb(var(--idle-rgb) / .45);
+}
+.conn-dot.ok { background: var(--ok); }
+.conn-dot.warn { background: var(--yellow); }
+.conn-dot.bad { background: var(--err); }
+.conn-text { min-width: 0; display: grid; }
+.conn-t1 { font-size: 12px; font-weight: 700; color: var(--ink); }
+.conn-t2 {
+  font-size: 11px; color: var(--text-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+body.rail-off .conn { justify-content: center; padding: 10px 0; }
+body.rail-off .conn-text { display: none; }
+
+/* ══ 시트(패널) ═════════════════════════════════════════════════════════
+   .app 밖에 있다 — 화면을 옮겨도 안 사라진다. 오버레이 레이어라 그림자를 갖는다
+   (바탕 카드는 그림자 0 이라는 규칙의 예외 자리). */
+.scrim {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgb(var(--scrim-rgb) / .34);
+}
+.sheet {
+  position: fixed; z-index: 61; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(520px, calc(100vw - 40px));
+  background: var(--bone); border-radius: 16px; padding: 22px 24px 20px;
+  box-shadow: 0 20px 60px rgb(var(--scrim-rgb) / .34);
+}
+.sheet-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.sheet-head h2 { margin: 0; font-size: 17px; font-weight: 800; color: var(--ink); }
+.sheet-x {
+  margin-left: auto; display: grid; place-items: center; cursor: pointer;
+  width: 28px; height: 28px; border: 0; border-radius: 8px;
+  background: none; color: var(--text-3);
+}
+.sheet-x:hover { background: var(--paper); color: var(--ink); }
+.sheet-why { margin: 0 0 16px; font-size: 12.5px; line-height: 1.7; color: var(--text-2); }
+.sheet-why b { color: var(--ink); }
+
+.conn-rows { margin: 0 0 18px; display: grid; gap: 1px; }
+.conn-rows div {
+  display: grid; grid-template-columns: 96px 1fr; gap: 12px; align-items: baseline;
+  background: var(--white); padding: 9px 13px;
+  box-shadow: inset 0 0 0 1px var(--hairline-2);
+}
+.conn-rows div:first-child { border-radius: 10px 10px 0 0; }
+.conn-rows div:last-child { border-radius: 0 0 10px 10px; }
+.conn-rows dt { font-size: 11.5px; color: var(--text-3); }
+.conn-rows dd {
+  margin: 0; font-size: 12.5px; color: var(--ink); font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.conn-rows dd.no { color: var(--err); }
+.conn-rows dd.hold { color: var(--warn); }
+
+.sheet-acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.sheet-note {
+  margin: 14px 0 0; font-size: 11.5px; line-height: 1.65; color: var(--text-3);
+}
+.sheet-note b { color: var(--text-2); }
+
+/* 선택지 이름 아래 붙는 한 마디 — "음성 언어" 만으로는 무엇의 언어인지 매번
+   다시 생각하게 된다. */
+.opt-row label em {
+  display: block; font-style: normal; font-weight: 500;
+  font-size: 11px; color: var(--text-3); margin-top: -2px;
+}
+.opt-row label { align-content: start; }
+
+/* 고른 값을 문장으로 다시 읽어 주는 자리 */
+.opt-say {
+  margin: 4px 0 0; padding: 10px 13px; border-radius: 10px;
+  background: var(--yellow-wash);
+  font-size: 12.5px; line-height: 1.7; color: var(--text-2);
+}
+.opt-say b { color: var(--ink); font-weight: 700; }
+.opt-say .arrow { color: var(--brand); font-weight: 700; }
