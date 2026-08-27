@@ -7,7 +7,7 @@
 260818의 s3_match_slides는 **영상이 없어서** 슬라이드 글자와 전사문을 Claude로
 견줘 맞춰야 했다. 여기는 다르다 — 강의 영상이 통째로 있고, 강의 영상에서 슬라이드가
 넘어가는 순간은 **화면이 확 바뀌는 순간**이다. ffmpeg의 장면 검출이 그걸 그대로
-집어낸다. LLM을 부르지 않으니 공짜고, 120강을 돌려도 비용이 0이다.
+집어낸다. LLM을 부르지 않으니 공짜고, 100강을 돌려도 비용이 0이다.
 
     ffmpeg -vf "select='gt(scene,0.30)',metadata=print"
 
@@ -153,7 +153,7 @@ def main() -> None:
 
     save_json(P.scenes, rows)
     P.scenes_csv.parent.mkdir(parents=True, exist_ok=True)
-    # 외주업체가 엑셀로 열어 본다 — 윈도 엑셀이 UTF-8을 알아보게 BOM을 붙인다
+    # 외부 제작사가 엑셀로 열어 본다 — 윈도 엑셀이 UTF-8을 알아보게 BOM을 붙인다
     with P.scenes_csv.open("w", encoding="utf-8-sig", newline="") as f:
         w = csv.writer(f)
         w.writerow(["씬", "시작", "끝", "길이(초)", "슬라이드"])

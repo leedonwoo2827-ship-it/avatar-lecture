@@ -16,7 +16,7 @@ const CUE_MAX = { ru: 42, uz: 46, en: 46, ko: 30 };
 const CHUNK_MAX = 28 * 60;   // scripts/common.py CHUNK_MAX_SEC
 const PERSO_MAX = 30 * 60;   // scripts/common.py PERSO_LIMIT_SEC
 
-let STATE = { bundles: [], jobs: [], steps: [] };
+let STATE = { bundles: [], jobs: [], steps: [], cfg: null };
 let picked = null;      // 고른 번들 경로
 let curWs = null;       // 자막·컷 화면이 보고 있는 워크스페이스
 let cues = [];          // 자막 화면의 현재 큐
@@ -62,6 +62,7 @@ function route() {
 /* ── 상태 읽어 오기 ────────────────────────────────────────── */
 async function refresh() {
   STATE = await api("/api/state");
+  applyCfg();
   drawBundles();
   drawJobs();
   fillWsSelects();
@@ -93,6 +94,21 @@ function bundleDetail(b) {
   return `<b>${b.name}</b> — ${bits.join(" · ")}`;
 }
 const showDetail = (b) => { $("#pick-detail").innerHTML = bundleDetail(b); };
+
+/* 기본 언어는 서버(config.local.json)가 정한다. 한 번만 맞추고, 그 뒤에는
+   사람이 고른 값을 건드리지 않는다. */
+let cfgDone = false;
+function applyCfg() {
+  if (cfgDone || !STATE.cfg) return;
+  cfgDone = true;
+  const set = (sel, v) => {
+    const el = $(sel);
+    if (v && [...el.options].some((o) => o.value === v)) el.value = v;
+  };
+  set("#opt-lang", STATE.cfg.audio_lang);
+  set("#opt-sub", STATE.cfg.sub_lang);
+  drawSay();
+}
 
 function drawBundles() {
   const ul = $("#bundle-list");
@@ -538,13 +554,20 @@ for (const id of ["#opt-lang", "#opt-sub", "#opt-model"]) $(id).onchange = drawS
  */
 let CONN = null;
 
+/* 화면을 녹화해 밖에 공유하는 일이 잦다. 레일 단추는 늘 보이는 자리라 계정을
+   가려 둔다 — 전체는 패널을 열었을 때만 보인다. */
+function maskEmail(e) {
+  const m = /^(.{1,2})[^@]*(@.+)$/.exec(e || "");
+  return m ? `${m[1]}****${m[2]}` : (e || "");
+}
+
 function drawConn() {
   const c = CONN;
   const dot = $("#conn-dot");
   dot.className = "conn-dot" + (
     !c ? "" : c.ok ? " ok" : (c.cli ? " warn" : " bad"));
   $("#conn-t1").textContent = !c ? "확인 중…" : (c.ok ? "Claude 연결됨" : "Claude 연결 안 됨");
-  $("#conn-t2").textContent = !c ? "" : (c.ok ? (c.email || c.method || "") : c.why);
+  $("#conn-t2").textContent = !c ? "" : (c.ok ? (maskEmail(c.email) || c.method || "") : c.why);
   $("#conn-btn").title = !c ? "Claude 연결 상태" : `Claude — ${c.why}`;
 
   const rows = $("#conn-rows");

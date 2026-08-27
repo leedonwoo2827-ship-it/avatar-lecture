@@ -8,14 +8,12 @@
 규칙은 전부 scripts/cues.py에 있다 — 한 큐 = 한 줄, 언어별 최대 글자수,
 단어 중간 금지, 최소 1.2초·최대 6.0초, 겹침 금지.
 
-`--lang`은 **자막 언어**다(음성 언어인 s2의 `--lang`과 다르다). 기본 계획은
-음성 러시아어 + 자막 우즈벡어인데, 이 단계에서 나오는 건 아직 **음성을 그대로 받아
-적은 러시아어 자막**이다. 우즈벡어 자막은 이 SRT를 번역해서 같은 타임코드에
-얹으면 된다(번역은 SME·외주 소관 — 파이프라인 밖이다).
+이 단계가 내는 것은 **음성을 그대로 받아 적은 자막**이다. 자막을 다른 언어로
+내려면 이 SRT의 **타임코드를 그대로 두고 본문만 갈아끼운다** — s3b가 그 일을 한다.
 
-    python scripts/s3_cue.py --lang ru          # 음성 그대로 받아적은 자막
-    → 이 SRT를 번역해 03/subs.uz.srt 로 저장     # 타임코드는 그대로 두고 본문만 교체
-    → s6가 uz를 골라 담게 --sub-lang uz
+    python scripts/s3_cue.py --lang ko          # 음성 그대로 받아적은 자막
+    python scripts/s3b_relabel.py --translate --from ko --to en
+    python scripts/s6_package.py --sub-lang en
 
 ★ 03/subs.*.srt 는 **사람이 손으로 고쳐도 된다.** s4·s6은 cues.json이 아니라
   손편집 가능성이 있는 SRT를 다시 읽어 쓴다 — 손편집이 이긴다.

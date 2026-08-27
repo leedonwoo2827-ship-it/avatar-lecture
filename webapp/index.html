@@ -33,8 +33,8 @@
     <ul class="side-nav" id="side-nav">
       <li><a href="#/run" data-nav="run" title="새로 돌리기 — 강의 골라 s1~s7">
         <span data-icon="film"></span><span>새로 돌리기 <em class="nav-dest">강의 골라 s1~s7</em></span></a></li>
-      <li><a href="#/subs" data-nav="subs" title="자막 다듬기 — SME 컨펌 반영">
-        <span data-icon="file"></span><span>자막 다듬기 <em class="nav-dest">SME 컨펌 반영</em></span></a></li>
+      <li><a href="#/subs" data-nav="subs" title="자막 다듬기 — 검수자 컨펌 반영">
+        <span data-icon="file"></span><span>자막 다듬기 <em class="nav-dest">검수자 컨펌 반영</em></span></a></li>
       <li><a href="#/cuts" data-nav="cuts" title="컷 옮기기 — 30분 한계 맞추기">
         <span data-icon="slide"></span><span>컷 옮기기 <em class="nav-dest">30분 한계 맞추기</em></span></a></li>
       <li><a href="#/out" data-nav="out" title="결과 — perso에 넘길 것">
@@ -81,9 +81,11 @@
       <div class="card">
         <div class="card-t">설정</div>
         <div class="opt-row">
+          <!-- ★ selected 를 두지 않는다. 어느 언어가 기본인지는 프로젝트마다 다르고
+               저장소에 남길 것도 아니라, config.local.json 을 읽어 JS 가 고른다. -->
           <label>음성 언어 <em>영상에서 들리는 말</em>
             <select id="opt-lang">
-              <option value="ru" selected>러시아어 (ru)</option>
+              <option value="ru">러시아어 (ru)</option>
               <option value="uz">우즈벡어 (uz)</option>
               <option value="ko">한국어 (ko)</option>
               <option value="en">영어 (en)</option>
@@ -91,7 +93,7 @@
           </label>
           <label>자막 언어 <em>화면에 뜨는 글자</em>
             <select id="opt-sub">
-              <option value="uz" selected>우즈벡어 (uz)</option>
+              <option value="uz">우즈벡어 (uz)</option>
               <option value="ru">러시아어 (ru)</option>
               <option value="ko">한국어 (ko)</option>
               <option value="en">영어 (en)</option>

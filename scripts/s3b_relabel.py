@@ -17,7 +17,7 @@
 
 ### 가장 빠른 길 — Claude 가 바로 옮긴다 (API 키 없음)
 
-    python scripts/s3b_relabel.py --translate --from ru --to uz
+    python scripts/s3b_relabel.py --translate --from ko --to en
 
 `claude` CLI 로 로그인해 둔 세션(OAuth)을 그대로 쓴다. 40줄씩 끊어 보내고
 번호로 돌려받아 **줄 수가 어긋나지 않게** 지킨다. 최종 문구는 SME 가 봐야 하니,
@@ -28,7 +28,7 @@
     python scripts/s3b_relabel.py --export --from ru
       → 03/번역할것.ru.txt 이 나온다. 한 줄이 자막 하나다.
 
-    이 txt를 번역기·SME·외주에 넘긴다. **줄 수를 바꾸지 말라**고 못박아야 한다.
+    이 txt를 번역기·SME·번역자에게 넘긴다. **줄 수를 바꾸지 말라**고 못박아야 한다.
     줄 하나가 자막 하나이므로 줄이 늘거나 줄면 전부 밀린다.
 
     python scripts/s3b_relabel.py --import 03/번역한것.uz.txt --to uz
@@ -64,8 +64,8 @@ def main() -> None:
     ap.add_argument("--export", action="store_true", help="번역용 txt를 내보낸다")
     ap.add_argument("--import", dest="imp", default=None,
                     help="번역한 txt를 들여와 SRT를 만든다")
-    ap.add_argument("--from", dest="src_lang", default="ru", help="원문 자막 언어 (기본 ru)")
-    ap.add_argument("--to", dest="dst_lang", default="uz", help="만들 자막 언어 (기본 uz)")
+    ap.add_argument("--from", dest="src_lang", default=None, help="원문 자막 언어")
+    ap.add_argument("--to", dest="dst_lang", default=None, help="만들 자막 언어")
     a = ap.parse_args()
 
     if not (a.export or a.imp or a.translate):

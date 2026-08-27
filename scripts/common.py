@@ -62,15 +62,41 @@ CUT_SEARCH_HALF_SEC = 3 * 60
 
 # ── 자막 규칙 ────────────────────────────────────────────────────────────────
 # 큐 하나 = 한 줄. 글자폭이 언어마다 달라 최대 글자수를 따로 둔다.
+# 글자폭이 문자 체계마다 달라 하나로 둘 수 없다.
 CUE_MAX_CHARS = {
-    "ru": 42,   # 키릴 — 글자가 넓다
-    "uz": 46,   # 우즈벡 라틴
-    "en": 46,
-    "ko": 30,   # 한글 — 한 글자가 라틴 두 글자 폭
+    "ru": 42,   # 키릴 계열 — 글자가 넓다
+    "uk": 42, "bg": 42, "sr": 42, "kk": 42,
+    "uz": 46, "en": 46, "tr": 46, "de": 46, "fr": 46, "es": 46,   # 라틴 계열
+    "ko": 30, "ja": 30, "zh": 30,   # 전각 — 한 글자가 라틴 두 글자 폭
 }
 CUE_MIN_SEC = 1.2      # 이보다 짧게 스치면 못 읽는다
 CUE_MAX_SEC = 6.0      # 이보다 길게 붙어 있으면 화면이 죽는다
 CUE_GAP_SEC = 0.08     # 큐 사이 최소 간격 — 겹치면 플레이어가 둘을 겹쳐 그린다
+
+
+# ── 프로젝트 설정 — 저장소에 안 남긴다 ──────────────────────────────────────
+# 어느 언어를 듣고 어느 언어로 자막을 내는지는 **프로젝트마다 다르고, 공개
+# 저장소에 남길 정보도 아니다.** 그래서 기본값을 코드에 박지 않고 옆의
+# `config.local.json`(gitignore) 에서 읽는다. 파일이 없으면 아래 중립값을 쓴다.
+#
+#     {"audio_lang": "xx", "sub_lang": "yy", "tts_voice": "..."}
+#
+# 화면과 명령줄의 `--lang` / `--sub-lang` 이 늘 이깁니다 — 이건 그저 기본값이다.
+DEFAULTS = {"audio_lang": "ko", "sub_lang": "en", "tts_voice": "en_US-lessac-medium"}
+
+
+def local_config() -> dict[str, str]:
+    p = ROOT / "config.local.json"
+    if not p.is_file():
+        return dict(DEFAULTS)
+    try:
+        got = json.loads(p.read_text(encoding="utf-8-sig"))
+    except Exception:  # noqa: BLE001 — 설정이 깨져도 도구는 돌아야 한다
+        print(f"경고: {p.name} 을 읽지 못했습니다 — 기본값을 씁니다")
+        return dict(DEFAULTS)
+    out = dict(DEFAULTS)
+    out.update({k: str(v) for k, v in got.items() if k in DEFAULTS and v})
+    return out
 
 
 def cue_max_chars(lang: str) -> int:

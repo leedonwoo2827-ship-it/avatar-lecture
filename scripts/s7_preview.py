@@ -38,7 +38,7 @@ STYLE = ("FontName=Arial,FontSize=22,PrimaryColour=&H00FFFFFF,"
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="검수용 자막 번인본 굽기")
-    ap.add_argument("--sub-lang", default="ru")
+    ap.add_argument("--sub-lang", default=None)
     ap.add_argument("--limit", type=float, default=None, help="앞 N초만 굽는다 (빨리 확인용)")
     ap.add_argument("--chunk", type=int, default=None, help="이 조각만 굽는다 (기본: 전부)")
     a = ap.parse_args()

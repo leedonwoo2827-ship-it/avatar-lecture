@@ -23,7 +23,7 @@ from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scripts.bundle import scan
-from scripts.common import ROOT, load_json, mmss, save_json
+from scripts.common import ROOT, load_json, local_config, mmss, save_json
 from scripts.cues import parse_srt, to_srt, Cue
 
 PORT = 6326
@@ -384,7 +384,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/state":
             return self._json({"bundles": bundle_rows(), "jobs": job_rows(),
                                "steps": [{"key": k, "label": l} for k, l in STEPS],
-                               "dotSteps": [{"key": k, "label": l} for k, l in DOT_STEPS]})
+                               "dotSteps": [{"key": k, "label": l} for k, l in DOT_STEPS],
+                               # 어느 언어가 기본인지도 저장소에 안 남긴다 —
+                               # config.local.json 이 정한다.
+                               "cfg": local_config()})
         if path == "/api/claude":
             return self._json(claude_status())
         if path == "/api/log":
@@ -422,7 +425,8 @@ class Handler(BaseHTTPRequestHandler):
             bundle = body.get("bundle") or ""
             if not bundle or not Path(bundle).is_dir():
                 return self._json({"error": "번들 폴더를 고르세요"}, 400)
-            lang = body.get("lang") or "ru"
+            cfg = local_config()
+            lang = body.get("lang") or cfg["audio_lang"]
             sub_lang = body.get("sub_lang") or lang
             model = body.get("model") or "small"
             threading.Thread(target=run_pipeline,
