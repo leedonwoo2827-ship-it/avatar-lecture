@@ -572,3 +572,197 @@ body.rail-off .conn-text { display: none; }
 }
 .opt-say b { color: var(--ink); font-weight: 700; }
 .opt-say .arrow { color: var(--brand); font-weight: 700; }
+
+/* == 씬 만들기 ==============================================================
+   검수본을 화면에서 바로 재생한다 — 폴더를 열어 하나씩 더블클릭하게 두면
+   여덟 개를 다 보지 않는다. 카드마다 영상이 붙고, 막대 넷은 어디까지 됐는지
+   (슬라이드·목소리·아바타·검수본) 한눈에 알려 준다. */
+.opt-row.col { flex-direction: column; gap: 10px; }
+.opt-row.col label { width: 100%; }
+.opt-row input[type="text"] {
+  font-size: 12px; font-weight: 500; padding: 7px 10px;
+  border-radius: 8px; border: 0; background: var(--white);
+  box-shadow: inset 0 0 0 1px var(--hairline); color: var(--text-1);
+}
+.opt-row.col input[type="text"] { width: 100%; font-family: ui-monospace, Consolas, monospace; }
+
+.sc-whole { margin-bottom: 14px; }
+.sc-cap { font-size: 12px; font-weight: 700; color: var(--text-2); margin-bottom: 6px; }
+.sc-whole video { width: 100%; max-width: 720px; border-radius: 10px; display: block; background: #000; }
+
+.sc-grid {
+  display: grid; gap: 10px; margin-bottom: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+}
+.sc-card {
+  padding: 10px 11px; border-radius: 10px; background: var(--white);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.sc-card.pending { opacity: .55; }
+.sc-h { display: flex; align-items: center; justify-content: space-between; }
+.sc-no { font-size: 12px; font-weight: 800; color: var(--ink); }
+.sc-h .dots { margin-top: 0; }
+.sc-t {
+  font-size: 12px; font-weight: 600; color: var(--text-2); margin: 5px 0 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sc-m { font-size: 11px; color: var(--text-3); margin-bottom: 7px; }
+.sc-m .bad { color: var(--err); }
+.sc-card video { width: 100%; border-radius: 7px; display: block; background: #000; }
+
+.sc-hint {
+  margin: 0 0 10px; font-size: 12px; line-height: 1.6; color: var(--text-3);
+}
+.sc-hint.ok { color: var(--text-2); }
+.opt-row input[type="password"] {
+  font-size: 12px; padding: 7px 10px; border-radius: 8px; border: 0;
+  background: var(--white); box-shadow: inset 0 0 0 1px var(--hairline);
+  color: var(--text-1); min-width: 240px;
+}
+
+/* == 좌측 순서 =============================================================
+   hyper-close-frame(260831) 의 스텝 사이드바를 옮겨 왔다. 구조는 그대로 쓰되
+   **색은 이 앱 토큰으로** 갈았다 — 브랜드가 둘로 보이면 안 된다.
+   번호·이름·$·상태점 네 조각이 한 줄이다. */
+.rail-scroll { flex: 1; overflow-y: auto; padding: 10px 10px 14px; }
+.rail-all { width: 100%; justify-content: center; margin-bottom: 10px; }
+
+.step {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; text-align: left;
+  padding: 9px 10px; margin-bottom: 2px;
+  background: none; border: 0; border-radius: 8px;
+  color: var(--text-2); cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.step:hover { background: rgb(var(--idle-rgb) / .10); color: var(--text-1); }
+.step.on { background: var(--white); color: var(--ink); box-shadow: var(--shadow); }
+.step.on .step-no { background: var(--brand); color: #fff; }
+
+.step-no {
+  flex: 0 0 22px; height: 22px;
+  display: grid; place-items: center;
+  border-radius: 6px; background: rgb(var(--idle-rgb) / .18); color: var(--text-3);
+  font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.step-name { flex: 1; font-size: 13px; font-weight: 600; }
+
+/* 상태 점 — scenes.json 이 채워진 정도를 그대로 비춘다 */
+.step-dot {
+  flex: 0 0 7px; height: 7px; border-radius: 50%;
+  background: rgb(var(--idle-rgb) / .30);
+}
+.step-dot.done { background: var(--ok); }
+.step-dot.part { background: var(--yellow); }
+
+/* $ — perso 를 실제로 부르는 단계에만 붙는다 */
+.step .cost {
+  font-size: 9px; font-weight: 800; color: var(--err);
+  border: 1px solid rgb(var(--err-rgb, 190 60 60) / .30);
+  background: rgb(var(--err-rgb, 190 60 60) / .08);
+  border-radius: 4px; padding: 0 4px; line-height: 15px;
+}
+.cost-tag {
+  font-size: 13px; font-weight: 800; color: var(--err);
+  vertical-align: middle; margin-left: 4px;
+}
+
+/* 「넘기는 것」 — 만드는 일과 넘기는 일 사이의 금 */
+.step-rule {
+  display: flex; align-items: center; gap: 8px;
+  margin: 12px 4px 8px; font-size: 10px; font-weight: 700;
+  letter-spacing: .08em; color: var(--text-3);
+}
+.step-rule::before, .step-rule::after {
+  content: ""; flex: 1; height: 1px; background: var(--hairline);
+}
+.step-rule span { flex: none; }
+
+/* == 스타일 고르기 =========================================================
+   둘뿐이라 라디오다. 그림은 CSS 상자 몇 개로 그린다 — 스크린샷을 넣으면
+   배치를 고칠 때마다 이미지도 같이 갈아야 한다. */
+.style-pick { display: grid; gap: 12px; grid-template-columns: 1fr; }
+@media (min-width: 780px) { .style-pick { grid-template-columns: 1fr 1fr; } }
+.style-op input { position: absolute; opacity: 0; pointer-events: none; }
+.style-box {
+  display: block; padding: 13px 15px 15px; border-radius: 10px;
+  background: var(--white); box-shadow: inset 0 0 0 1px var(--hairline);
+  cursor: pointer; transition: box-shadow .12s;
+}
+.style-op input:checked + .style-box { box-shadow: inset 0 0 0 2px var(--brand); }
+.style-op input:focus-visible + .style-box { outline: 2px solid var(--brand); outline-offset: 2px; }
+.style-box b { display: block; font-size: 13.5px; margin-bottom: 3px; color: var(--ink); }
+.style-box em {
+  display: block; font-style: normal; font-size: 11.5px; line-height: 1.6;
+  color: var(--text-3);
+}
+
+/* 배치 그림 — 16:9 안에 슬라이드·발표자칸·자막띠를 상자로 */
+.style-fig {
+  display: block; position: relative; width: 100%; aspect-ratio: 16 / 9;
+  background: #F6F1E8; border-radius: 5px; overflow: hidden; margin-bottom: 9px;
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.style-fig i { position: absolute; display: block; }
+.fig-slide { background: #C9D6E5; }
+.fig-col   { background: #E4DED1; }
+.fig-av    { background: #23262B; }
+.fig-band  { background: #D8DADE; }
+/* 전면샷 — 슬라이드가 다 채우고 발표자가 그 위에 */
+[data-fig="full"] .fig-slide { inset: 0; }
+[data-fig="full"] .fig-av    { right: 6%; bottom: 0; width: 13%; height: 72%; }
+[data-fig="full"] .fig-band  { left: 0; right: 0; bottom: 0; height: 12%; }
+/* 여백형 — 슬라이드 왼쪽 칸 · 발표자 오른쪽 칸 · 아래가 자막 선에 붙음 */
+[data-fig="panel"] .fig-slide { left: 0; right: 19%; top: 7%; bottom: 12%; }
+[data-fig="panel"] .fig-col   { right: 0; top: 0; bottom: 0; width: 19%; }
+[data-fig="panel"] .fig-av    { right: 5%; bottom: 0; width: 9%; height: 72%; }
+[data-fig="panel"] .fig-band  { left: 0; right: 0; bottom: 0; height: 12%; }
+
+.sc-hint.ok { color: var(--text-2); }
+
+.chk { display: inline-flex; align-items: center; gap: 7px; padding: 7px 0; }
+.chk input { width: 15px; height: 15px; accent-color: var(--brand); }
+.chk span { font-size: 12px; font-weight: 500; color: var(--text-2); }
+
+/* == 언어 고르기 ===========================================================
+   두 글자 코드를 외우게 하지 않는다 — 눌러 담는다. 문자 체계로 묶고 자/초를
+   같이 적는 이유는, 그 값이 이 언어로 씬 안에 넣을 수 있는 글자 수를 정하기
+   때문이다(한중일 6~7자/초 · 라틴 14~15자/초). */
+.lang-picked {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; min-height: 30px;
+}
+.lang-find {
+  width: 100%; font-size: 12.5px; padding: 8px 11px; margin-bottom: 4px;
+  border: 0; border-radius: 8px; background: var(--white);
+  box-shadow: inset 0 0 0 1px var(--hairline); color: var(--text-1);
+}
+.lang-group { margin-bottom: 12px; }
+.lang-gh {
+  display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px;
+  font-size: 11.5px; font-weight: 700; color: var(--text-2);
+}
+.lang-cps { font-size: 10.5px; font-weight: 500; color: var(--text-3); }
+.lang-row { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.lang-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 9px; border: 0; border-radius: 7px; cursor: pointer;
+  background: var(--white); box-shadow: inset 0 0 0 1px var(--hairline);
+  font-size: 11.5px; color: var(--text-2); transition: box-shadow .12s, background .12s;
+}
+.lang-chip:hover { box-shadow: inset 0 0 0 1px var(--brand); }
+.lang-chip b { font-weight: 700; color: var(--ink); }
+.lang-chip.on { background: var(--wash, #eef4fb); box-shadow: inset 0 0 0 1.5px var(--brand); }
+.lang-chip i { font-style: normal; font-size: 10px; color: var(--text-3); }
+.lang-chip .lang-tag { font-family: ui-monospace, Consolas, monospace; }
+.lang-chip .lang-first {
+  color: var(--brand); font-weight: 700;
+  border: 1px solid var(--brand); border-radius: 4px; padding: 0 4px;
+}
+.lang-chip .lang-n { color: var(--ok); font-weight: 700; }
+.lang-chip .lang-x { font-weight: 700; margin-left: 2px; }
+.lang-picked .lang-chip { cursor: pointer; }
+
+/* 브랜드 마크 — 글자가 아니라 그림이 들어가므로 좌우 여백을 줄이고 정사각에 가깝게 */
+.brand-mark { min-width: 34px; padding: 0; }
+.brand-mark svg { display: block; }
