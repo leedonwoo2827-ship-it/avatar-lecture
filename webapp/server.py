@@ -53,6 +53,16 @@ SCENE_STEPS = [
     ("p5",  "합치기"),
 ]
 
+# ★ 「전부 만들기」는 **묶음까지**다.
+#
+# 아바타는 밖에 나갔다 와야 하는 단계다. 한 번에 돌리는 길에 끼워 두면 아직
+# 아무것도 안 왔을 뿐인데 «영상이 없습니다» 로 멈추고, 그 자리에서 죽으니
+# 합치기까지 못 간다 — 다 된 일까지 실패처럼 보인다.
+#
+# 묶음을 만들어 놓고 «이제 05 의 mp3 를 올리세요» 로 끝내는 것이 맞다.
+# 영상이 오면 07 아바타 화면에서 묶음마다 붙이고 09 를 굽는다.
+ALL_STEPS = [s for s in SCENE_STEPS if s[0] not in ("p4", "p5")]
+
 class Job:
     """지금 돌고 있는 작업 하나. 로그를 줄 단위로 쌓아 두고 화면이 받아 간다."""
 
@@ -173,11 +183,11 @@ def run_scene_pipeline(opts: dict) -> None:
     JOB.running, JOB.failed, JOB.ws = True, False, ""
     JOB.lang, JOB.sub_lang = "uz", opts["sub_lang"]
     JOB.kind = "scene"
-    JOB.steps = [{"key": k, "label": l} for k, l in SCENE_STEPS]
+    JOB.steps = [{"key": k, "label": l} for k, l in ALL_STEPS]
 
     args_for = scene_args(opts)
     try:
-        for key, label in SCENE_STEPS:
+        for key, label in ALL_STEPS:
             JOB.step = key
             JOB.log(f"[{key}] {label}")
             pr = subprocess.Popen([str(PY)] + args_for[key], cwd=str(ROOT),
@@ -192,6 +202,14 @@ def run_scene_pipeline(opts: dict) -> None:
                 return
         JOB.ws = opts["task"]
         JOB.step = "done"
+        # 여기가 «내 컴퓨터에서 할 수 있는 것의 끝» 이다. 다음에 무엇을
+        # 해야 하는지 로그가 그대로 말해 준다 — 화면을 뒤지게 하지 않는다.
+        up = scene_paths(opts["task"]).upload
+        JOB.log("")
+        JOB.log("여기까지가 내 컴퓨터에서 되는 것입니다.")
+        JOB.log(f"다음: 07 아바타 화면에서 묶음마다 «올릴음성.mp3» 을 꺼내")
+        JOB.log(f"      HeyGen 에 올리고, 받은 영상을 그 칸에 끌어다 놓으세요.")
+        JOB.log(f"      묶음 폴더 — {up}")
     finally:
         JOB.running = False
 

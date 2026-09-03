@@ -570,7 +570,7 @@ def main() -> None:
                          "· band=아래를 자막 선에 붙이고 여백을 위로")
     ap.add_argument("--avatar-sink", type=float, default=0.54,
                     help="**크기는 그대로 두고 아래로 내린다** (1.0=발끝이 화면 "
-                         "바닥). 0.66 이면 아래 34%가 화면 밖으로 나가 허벅지에서 "
+                         "바닥). 0.66 이면 아래 34%%가 화면 밖으로 나가 허벅지에서 "
                          "끊긴다. --avatar-keep 과 달리 **사람 폭이 안 바뀐다** — "
                          "«커지지 말고 내려만» 달라는 쪽이 이것이다")
     ap.add_argument("--avatar-keep", type=float, default=1.0,
