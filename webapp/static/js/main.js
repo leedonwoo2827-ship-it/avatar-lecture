@@ -199,7 +199,9 @@ function fillPaths() {
   const st = localStorage.getItem("sc.style");
   if (st) { const r = $(`input[name="style"][value="${st}"]`); if (r) r.checked = true; }
   const rg = localStorage.getItem("sc.range");
-  if (rg) $("#sc-range").value = rg;
+  // 옛 기본값이 저장돼 있으면 버린다. 그 값은 이 강의 하나에만 맞았다.
+  if (rg && rg !== "1-32" && rg !== "1-8") $("#sc-range").value = rg;
+  else localStorage.removeItem("sc.range");
   $("#sc-range").onchange = () => localStorage.setItem("sc.range", $("#sc-range").value.trim());
 }
 const styleOf = () => ($('input[name="style"]:checked') || {}).value || "full";
@@ -212,7 +214,8 @@ $$('input[name="style"]').forEach((r) => {
    단계마다 다른 몸통을 만들면 「전부 만들기」와 「이 단계만」이 갈린다. */
 function payload(step) {
   const b = { task: task(), step: step || "",
-              scenes: $("#sc-range").value.trim() || "1-8",
+              // 비면 «전부». 예전 기본은 "1-8" 이라 32씬 강의가 8씬만 돌았다
+              scenes: $("#sc-range").value.trim() || "all",
               style: styleOf(),
               voice_engine: $("#sc-voice").value,
               avatar_engine: $("#sc-avatar").value,

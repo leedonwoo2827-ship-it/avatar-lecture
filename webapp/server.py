@@ -85,10 +85,50 @@ class Job:
 JOB = Job()
 
 
+# ── 돌릴 때 쓰는 값의 기본 ────────────────────────────────────────────────
+# ★ 화면이 안 보낸 칸은 여기 값이 쓰인다. 예전에는 scene_args 가 o["..."] 로
+#   직접 꺼내서, 화면에 칸이 없는 값(내림·기울기)이 생기자 명령줄을 만들다
+#   KeyError 로 죽었다 — 스크립트는 한 줄도 안 돌았다.
+#
+# 돈이 드는 쪽으로 기울지 않게 둔다: 목소리는 원본에서 떼어 오고(0원),
+# 아바타는 받아 온 영상을 붙인다(0원). 실수로 API 를 부르는 기본은 없다.
+RUN_DEFAULTS = {
+    "scenes": "all",           # 안 주면 전부. 「1-8」 로 두면 32씬 강의가 8씬만 돈다
+    "style": "full",
+    "voice_engine": "source",
+    "avatar_engine": "drop",
+    "avatar_h": "0.85",        # 전신 아바타
+    "avatar_sink": "0.54",     # 크기는 그대로 두고 바닥을 화면 밖으로
+    "avatar_vary": "0",
+    "avatar_rotate": "0",
+    "avatar_src": "",          # 비면 --from 을 안 붙인다 = 묶음 폴더를 본다
+    "bundle_max_sec": "590",   # HeyGen 상한 600 초에 10 초 마진
+    "bundle_pack": "even",
+    "subs_mode": "burn",
+    "slide_fit": "contain",
+    "script_lang": "uz",
+    "sub_lang": "ru",
+    "retranslate": False,
+    "script": "", "subs": "", "slides": "", "source": "",
+}
+
+
+def with_defaults(o: dict) -> dict:
+    """화면이 보낸 값 + 안 보낸 칸의 기본값. 보낸 쪽이 이긴다.
+
+    빈 글자는 **뜻이 있다** — `avatar_src` 가 비면 «묶음 폴더를 보라» 는 말이다.
+    그래서 값이 비었다고 기본으로 되돌리지 않는다. 없는 키만 채운다.
+    """
+    got = dict(RUN_DEFAULTS)
+    got.update({k: v for k, v in (o or {}).items() if v is not None})
+    return got
+
+
 def scene_args(o: dict) -> dict[str, list[str]]:
     """단계 이름 → 명령줄. **전부 만들기와 단계 하나가 같은 표를 쓴다** —
     둘이 따로 놀면 화면에서 돌린 것과 한 번에 돌린 것이 달라진다.
     """
+    o = with_defaults(o)
     task = o["task"]
     return {
         "p1": ["scripts/p1_scenes.py", "--task", task, "--scenes", o["scenes"],
