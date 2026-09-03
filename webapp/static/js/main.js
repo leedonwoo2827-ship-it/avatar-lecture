@@ -925,9 +925,46 @@ async function loadLectures() {
         + `<b>고르면</b> 아래 재료 자리가 그 강의로 채워집니다.`;
     }
     drawLectures();
+    await fixStalePaths();
   } catch (e) {
     $("#lec-hint").textContent = "강의 목록을 읽지 못했습니다: " + e.message;
   }
+}
+
+/* 저장해 둔 재료 자리가 **없어졌으면** 지금 고른 강의 것으로 되돌린다.
+ *
+ * ★ 경로 네 개는 사람이 고칠 수 있어 브라우저에 남긴다(fillPaths). 그런데
+ *   프로젝트 폴더를 옮기거나 이름을 바꾸면 그 값만 옛 자리를 가리킨 채 남는다.
+ *   화면은 멀쩡해 보이고 — 강의 카드도 «재료 준비됨» 이라 한다 — 「전부
+ *   만들기」를 누르는 순간에만 «script 자리를 찾지 못했습니다: D:\…옛폴더\…»
+ *   가 떴다 (2026-09-04 실측). 사람이 원인을 알 길이 없는 자리다.
+ *
+ *   있는 값은 건드리지 않는다. 같은 강의 안에서 다른 파일을 가리키게 고쳐 둔
+ *   것도, 강의 폴더 밖의 원본을 가리키는 것도 그대로 산다 — **없는 자리만**
+ *   버린다. 서버가 답을 못 하면 아무것도 안 고친다(멀쩡한 값을 날리는 쪽이
+ *   더 나쁘다).
+ */
+async function fixStalePaths() {
+  const saved = {};
+  for (const k of PATH_KEYS) {
+    const v = (localStorage.getItem("sc." + k) || "").trim();
+    if (v) saved[k] = v;
+  }
+  if (!Object.keys(saved).length) return;
+  let gone = [];
+  try {
+    const r = await post("/api/path-exists", { paths: saved });
+    gone = PATH_KEYS.filter((k) => saved[k] && (r.exists || {})[k] === false);
+  } catch { return; }
+  if (!gone.length) return;
+  const L = LECS.find((x) => x.task === task()) || {};
+  for (const k of gone) {
+    const next = L[k] || ((STATE.sceneDefaults || {})[k] || "");
+    localStorage.setItem("sc." + k, next);
+    const el = $("#sc-" + k);
+    if (el) el.value = next;
+  }
+  toast(`없어진 재료 자리 ${gone.length}개를 «${task()}» 강의 것으로 되돌렸습니다`);
 }
 
 function drawLectures() {

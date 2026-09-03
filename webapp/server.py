@@ -1011,6 +1011,23 @@ class Handler(BaseHTTPRequestHandler):
             f.unlink()
             return self._json({"ok": True})
 
+        if path == "/api/path-exists":
+            # 저장해 둔 재료 자리가 아직 그 자리에 있는지만 답한다. 화면은 사람이
+            # 고친 경로를 브라우저에 남겨 두는데, 폴더를 옮기거나 이름을 바꾸면
+            # 그 값이 옛 자리를 가리킨 채로 남는다. 그러면 「전부 만들기」를
+            # 누르는 순간에야 «script 자리를 찾지 못했습니다» 가 뜬다 —
+            # 화면이 먼저 스스로 고쳐 쓰려면 이 답이 있어야 한다.
+            paths = body.get("paths")
+            if not isinstance(paths, dict):
+                return self._json({"error": "paths 는 {이름: 경로} 여야 합니다"}, 400)
+            out = {}
+            for k, v in list(paths.items())[:20]:
+                try:
+                    out[str(k)] = bool(v) and Path(str(v)).exists()
+                except OSError:  # 없는 드라이브 · 너무 긴 이름
+                    out[str(k)] = False
+            return self._json({"exists": out})
+
         if path == "/api/open":
             target = Path(body.get("path") or "")
             if not target.exists():
