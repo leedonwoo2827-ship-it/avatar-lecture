@@ -108,12 +108,21 @@ def dec(src: Path) -> list[str]:
 
 # ══ 영상 살펴보기 ═══════════════════════════════════════════════════════════
 
+def has_alpha_tag(tags: dict) -> bool:
+    """컨테이너 태그가 «알파가 있다» 고 말하는가. 이름의 대소문자를 안 가린다."""
+    for k, v in tags.items():
+        if str(k).lower() == "alpha_mode" and str(v).strip() == "1":
+            return True
+    return False
+
+
 def probe_video(fp: str, src: Path) -> dict:
     """폭·높이·픽셀형식·길이. 알파가 있는지는 픽셀형식이 말해 준다."""
     r = subprocess.run(
         [fp, "-v", "error", "-select_streams", "v:0",
          "-show_entries", "stream=width,height,pix_fmt,r_frame_rate",
-         "-show_entries", "stream_tags=ALPHA_MODE",
+         # 태그 이름을 콕 집으면 대소문자가 다른 파일을 놓친다 — 통째로 받는다
+         "-show_entries", "stream_tags",
          "-show_entries", "format=duration", "-of", "json", str(src)],
         capture_output=True, text=True, encoding="utf-8", errors="replace")
     if r.returncode != 0:
@@ -127,8 +136,12 @@ def probe_video(fp: str, src: Path) -> dict:
         # yuva420p · rgba · yuva444p10le … 알파가 있으면 이름에 a 가 붙는다.
         # ★ webm 은 알파를 **별도 스트림**으로 담아 pix_fmt 가 yuv420p 로 나온다.
         #   그때는 컨테이너 태그 ALPHA_MODE 를 봐야 안다(2026-09-02 실측).
+        # ★ **대소문자를 가리지 않는다.** HeyGen 은 `ALPHA_MODE`, ffmpeg 으로
+        #   다시 묶으면 `alpha_mode` 로 적힌다(2026-09-03 실측). 콕 집어 비교하면
+        #   한쪽을 놓치고, 놓치면 p5 가 검정 배경을 colorkey 로 빼려 들어
+        #   **검정 정장이 같이 지워진다.** 조용히 틀리는 쪽이라 더 위험하다.
         "alpha": bool(re.search(r"(^|[^a-z])(yuva|rgba|bgra|argb|abgr|ya)", pix))
-                 or str((st.get("tags") or {}).get("ALPHA_MODE", "")) == "1",
+                 or has_alpha_tag(st.get("tags") or {}),
         "dur": float((got.get("format") or {}).get("duration") or 0.0),
     }
 
@@ -286,6 +299,31 @@ def find_bundle_clip(src: Path, bno: int, bdir_name: str) -> Path | None:
     return vids[0] if len(vids) == 1 else None
 
 
+SPAN_RE = re.compile(r"(?:scene|씬|s)\s*0*(\d+)\s*[-~–—]\s*0*(\d+)", re.I)
+
+
+def spans_range(stem: str) -> bool:
+    r"""이름이 «씬 여러 개» 를 담고 있다고 말하는가.
+
+    업체 프로젝트 이름은 `001-bundle01-scene02-07우즈벡간호-IV2` 처럼 온다.
+    여기에 `scene02` 가 들어 있어 씬 2 짜리 영상으로 잡히면, 443초가 씬 2 에
+    통째로 붙고 씬 3~7 은 «영상이 없다» 로 남는다 — 오류 없이 조용히 틀린다.
+
+    ★ 범위로 읽히면 **씬 하나로 안 잡는다.** 그러면 길이로 나누는 길
+      (조각 몇 개의 합이 남은 씬 길이와 맞나)로 떨어져 제대로 갈린다.
+      길이는 이름과 달리 사람이 틀리게 적을 수 없다.
+
+    ★ 씬 번호는 **두 자리**다. 그래서 뒤 숫자가 99 를 넘으면 범위가 아니다 —
+      `scene02-1080p` 의 «02-1080» 을 씬 2~1080 으로 읽으면 안 된다.
+      해상도·비트레이트·날짜가 이름에 붙는 것이 흔하다.
+    """
+    for m in SPAN_RE.finditer(stem):
+        a, b = int(m.group(1)), int(m.group(2))
+        if 1 <= a < b <= 99 and b - a <= 40:
+            return True
+    return False
+
+
 def find_scene_clip(src: Path, no: int) -> Path | None:
     r"""**씬 하나**에 맞는 영상을 찾는다.
 
@@ -304,7 +342,7 @@ def find_scene_clip(src: Path, no: int) -> Path | None:
     for p in sorted(src.rglob("*")):
         if not (p.is_file() and p.suffix.lower() in VIDEO_EXTS):
             continue
-        if want in p.stem.lower():
+        if want in p.stem.lower() and not spans_range(p.stem):
             return p
     for p in sorted(src.rglob("*")):
         if not (p.is_file() and p.suffix.lower() in VIDEO_EXTS):
