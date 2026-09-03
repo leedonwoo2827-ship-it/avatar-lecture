@@ -192,8 +192,6 @@
           <span data-icon="play" data-icon-size="15"></span><span>실행</span>
         </button>
       </div>
-      <p class="sc-legend">씬 칸의 눈금 넷은 <b>슬라이드 · 목소리 · 아바타 · 검수본</b> 입니다 — 노란 칸이 끝난 것입니다.</p>
-      <div id="p1-out"></div>
     </section>
 
     <!-- ── 2 씬 ── -->
@@ -208,7 +206,9 @@
           <span data-icon="play" data-icon-size="15"></span><span>실행</span>
         </button>
       </div>
-
+
+      <p class="sc-legend">씬 칸의 눈금 넷은 <b>슬라이드 · 목소리 · 아바타 · 검수본</b> 입니다 — 노란 칸이 끝난 것입니다.</p>
+      <div id="p1-out"></div>
     </section>
 
     <!-- ── 3 목소리 ── -->
@@ -238,7 +238,7 @@
       </div>
       <p class="sc-legend">씬 칸의 눈금 넷은 <b>슬라이드 · 목소리 · 아바타 · 검수본</b> 입니다 — 노란 칸이 끝난 것입니다.</p>
       <div id="p2-out"></div>
-
+
     </section>
 
     <!-- ── 4 다국어 자막 ──────────────────────────────────────────────────
@@ -284,7 +284,7 @@
       </div>
       <p class="sc-legend">씬 칸의 눈금 넷은 <b>슬라이드 · 목소리 · 아바타 · 검수본</b> 입니다 — 노란 칸이 끝난 것입니다.</p>
       <div id="p2b-out"></div>
-
+
     </section>
 
     <!-- ── 5 자막 ── -->
@@ -345,36 +345,53 @@
           </button>
         </div>
       </div>
-
-      <p class="sc-legend">씬 칸의 눈금 넷은 <b>슬라이드 · 목소리 · 아바타 · 검수본</b> 입니다 — 노란 칸이 끝난 것입니다.</p>
-      <div id="p4-out"></div>
+
     </section>
 
-<section class="page" data-page="p4" hidden>
+    <section class="page" data-page="p4" hidden>
       <header class="page-head">
         <h1>아바타 <span class="cost-tag">$</span></h1>
-        <p class="page-sub">발표자를 만들어 넣습니다. 다음 단계가 이것을 <b>슬라이드 위에 마지막으로 얹습니다</b>.</p>
+        <p class="page-sub">이 단계는 <b>내보내고 받아 오는 일</b>입니다. 만드는 곳은
+          HeyGen 웹이고, 여기서는 <b>보낼 mp3 를 꺼내고 받은 영상을 붙입니다</b>.</p>
       </header>
+
+      <!-- ★ 두 방향을 절대 한 칸에 섞지 않는다. «지금 내가 보내는 차례인가
+           받는 차례인가» 를 화면이 먼저 말해야 한다. -->
+      <div class="card wide" id="p4-out-card">
+        <div class="card-t"><span class="way way-out">보내기</span> 아바타에 보낼 것</div>
+        <p class="sc-hint">아래 mp3 를 꺼내 <b>HeyGen 웹에 드래그드랍</b>하세요.
+          한 묶음을 <b>통째로</b> 올리면 자세가 이어지고, <b>장면</b>으로 나눠 올리면
+          도입만 다른 모델로 뽑을 수 있습니다.</p>
+        <div id="p4-send"></div>
+      </div>
+
+      <div class="card wide" id="p4-in-card">
+        <div class="card-t"><span class="way way-in">받기</span> 아바타에서 받은 것</div>
+        <p class="sc-hint">받은 영상을 <b>그 묶음 폴더에 되돌려</b> 놓고 아래 실행을
+          누르세요. 영상은 <b>자르지 않습니다</b> — 씬마다 «어디서부터 몇 초»만 적어
+          두고 다음 단계가 그 구간만 읽습니다.</p>
+        <div id="p4-recv"></div>
+      </div>
+
       <div class="card">
         <div class="card-t">설정</div>
         <div class="opt-row">
           <label>무엇으로 만드나 <em>웹이 API 보다 3~4배 쌉니다</em>
             <select id="sc-avatar">
-              <option value="stub">임시 아바타</option>
-              <option value="drop">내려받은 영상 붙이기</option>
+              <option value="drop">받은 영상 붙이기</option>
+              <option value="stub">임시 아바타 (0원)</option>
               <option value="heygen">HeyGen API (유료)</option>
             </select>
           </label>
           <label>크기 <em>화면 높이 대비. 전신 아바타는 <b>0.85</b>, 상반신은 <b>0.55~0.60</b></em>
             <input type="text" id="sc-avh" value="0.85" spellcheck="false" /></label>
         </div>
-        <!-- ★ drop 일 때만 쓴다. 아바타를 **자르지 않고** 묶음 영상 하나를 두고
-             씬마다 «어디서부터 몇 초»만 적는다 — 재인코딩 0회, 화질 손실 0. -->
+        <!-- 묶음 폴더에 되돌려 놓는 것이 기본이라 보통은 비워 둔다 -->
         <div class="opt-row" id="p4-drop-row" hidden>
-          <label class="grow">내려받은 영상 폴더
-            <em>묶음마다 파일 하나. 이름에 bundle01 이나 01 이 들어 있으면 알아서 짝짓습니다</em>
+          <label class="grow">다른 자리에서 찾기 <em>비워 두면 묶음 폴더를 봅니다.
+              다운로드 폴더째로 줘도 이름으로 짝짓습니다</em>
             <input type="text" id="sc-avatar-src" spellcheck="false"
-                   placeholder="예: 다운로드 폴더 경로를 붙여 넣으세요" /></label>
+                   placeholder="비워 두세요 — 묶음 폴더를 봅니다" /></label>
         </div>
         <p class="opt-say" id="p4-say"></p>
         <div class="run-in">
@@ -384,14 +401,17 @@
           </button>
         </div>
       </div>
-
+
+      <p class="sc-legend">씬 칸의 눈금 넷은 <b>슬라이드 · 목소리 · 아바타 · 검수본</b> 입니다 — 노란 칸이 끝난 것입니다.</p>
+      <div id="p4-out"></div>
     </section>
 
     <!-- ── 6 빌드 ── -->
     <section class="page" data-page="p5" hidden>
       <header class="page-head">
-        <h1>빌드</h1>
-        <p class="page-sub">슬라이드 + 아바타 + 자막을 합쳐 씬마다 굽고, 한 편으로 잇습니다.</p>
+        <h1>완성본</h1>
+        <p class="page-sub">슬라이드 + 아바타 + 자막을 합쳐 씬마다 굽고, 한 편으로 잇습니다.
+          구운 것은 <b>바로 아래에서 봅니다</b> — 전부 <code>09</code> 폴더입니다.</p>
       </header>
       <div class="card">
         <div class="card-t">설정</div>
@@ -420,19 +440,13 @@
           </button>
         </div>
       </div>
+      <!-- 만든 것을 같은 화면에서 본다. 굽는 자리와 보는 자리가 나뉘어 있으면
+           «빌드와 결과가 뭐가 다른가» 를 매번 다시 묻게 된다 — 둘 다 09 다. -->
+      <div id="sc-out"></div>
       <p class="sc-legend">씬 칸의 눈금 넷은 <b>슬라이드 · 목소리 · 아바타 · 검수본</b> 입니다 — 노란 칸이 끝난 것입니다.</p>
       <div id="p5-out"></div>
-
     </section>
 
-    <!-- ── 7 결과 ── -->
-    <section class="page" data-page="done" hidden>
-      <header class="page-head">
-        <h1>결과</h1>
-        <p class="page-sub">씬별 검수본과 이어 붙인 한 편입니다. 자막 원본은 <code>03_자막</code> 폴더에 따로 있습니다.</p>
-      </header>
-      <div id="sc-out"></div>
-    </section>
 
   </main>
 

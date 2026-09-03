@@ -510,10 +510,16 @@ def main() -> None:
                 c = find_scene_clip(look_in, n)
                 if c is not None:
                     per[n] = c
+
+            vids = sorted(x for x in look_in.rglob("*")
+                          if x.is_file() and x.suffix.lower() in VIDEO_EXTS)
+
+            # ★ 씬별로 온 것을 먼저 박고, **남은 씬은 남은 영상으로** 채운다.
+            #   섞여 오는 것이 정상이다 — 도입 한 씬만 좋은 모델로 따로 뽑고
+            #   본문 여섯 씬은 싼 모델로 한 덩어리로 받는 식이다. 예전에는
+            #   씬별이 하나라도 잡히면 나머지를 통째로 건너뛰어서, 그 흔한
+            #   조합이 «씬 2~7 은 아직 없습니다» 로만 끝났다.
             if per:
-                miss = [n for n in nos if n not in per]
-                print(f"  씬별 영상 {len(per)}개로 왔습니다"
-                      + (f" — 씬 {miss} 은 아직 없어 **건드리지 않습니다**" if miss else ""))
                 for n in sorted(per):
                     got_i = place(per[n], out_dir)
                     m = measure_clip(ff, fp, got_i, a)
@@ -528,18 +534,25 @@ def main() -> None:
                         "avatar_bg": m["bg"], "avatar_key": m["key"],
                     })
                     print(f"    {n:02d}  0:00.0 부터 {r['avatar_dur']:6.2f}초  "
-                          f"{str(r.get('title',''))[:28]}")
-                continue
+                          f"{str(r.get('title',''))[:28]}  ← 씬별 영상")
 
-            vids = sorted(x for x in look_in.rglob("*")
-                          if x.is_file() and x.suffix.lower() in VIDEO_EXTS)
-            if len(vids) > 1:
-                durs = [probe_video(fp, x)["dur"] for x in vids]
-                if abs(sum(durs) - bsec) <= max(2.0, 0.02 * bsec):
-                    print(f"  조각 {len(vids)}개로 왔습니다 "
-                          f"({' + '.join(mmss(d) for d in durs)} = {mmss(sum(durs))})")
-                    left = [by_no[n] for n in b["scenes"]]
-                    for clip_i, (one, dur_i) in enumerate(zip(vids, durs), start=1):
+            used = {x.resolve() for x in per.values()}
+            rest = [n for n in nos if n not in per]
+            cand = [x for x in vids if x.resolve() not in used]
+            if not rest:
+                continue
+            rsec = sum(float(by_no[n]["voice_dur"]) for n in rest)
+
+            # 남은 영상 길이 합이 남은 씬 길이 합과 맞으면 조각으로 본다.
+            # 1개든 2개든 같은 규칙이다 — 묶음 통째 영상도 여기 걸린다.
+            if cand:
+                durs = [probe_video(fp, x)["dur"] for x in cand]
+                if abs(sum(durs) - rsec) <= max(3.0, 0.02 * rsec):
+                    print(f"  조각 {len(cand)}개로 왔습니다 "
+                          f"({' + '.join(mmss(d) for d in durs)} = {mmss(sum(durs))}"
+                          f" ≈ 남은 씬 {mmss(rsec)})")
+                    left = [by_no[n] for n in rest]
+                    for clip_i, (one, dur_i) in enumerate(zip(cand, durs), start=1):
                         got_i = place(one, out_dir)
                         # 이 조각이 담은 씬들 — 씬 길이를 쌓아 조각 길이에 맞춘다
                         part, acc = [], 0.0
@@ -554,9 +567,6 @@ def main() -> None:
                         sc = (dur_i / acc) if acc > 0 else 1.0
                         off = 0.0
                         for r in part:
-                            if int(r["no"]) not in want_nos:
-                                off += float(r["voice_dur"]) * sc
-                                continue
                             r.update({
                                 "avatar": got_i.name,
                                 "avatar_offset": round(off, 3),
@@ -575,6 +585,21 @@ def main() -> None:
                         print(f"     ← 남은 씬 {[int(r['no']) for r in left]} 이 "
                               f"어느 조각에도 안 들어갔습니다. 조각 길이를 확인하세요")
                     continue
+                # 길이가 안 맞는다 — 씬별로 온 것이 이미 있으면 여기서 멈춘다.
+                # 통째 영상으로 다시 읽으면 이미 박은 씬을 덮어써 어긋난다.
+                if per:
+                    print(f"  · 씬 {rest} — 영상 {len(cand)}개의 길이 합 "
+                          f"{mmss(sum(durs))} 이 남은 씬 {mmss(rsec)} 과 안 맞아 "
+                          f"건드리지 않습니다")
+                    continue
+
+            # 씬별로 온 것이 있는데 남은 씬에 맞는 영상이 없으면 여기서 끝난다.
+            # 통째 영상 길로 새면 방금 박은 씬01 영상을 «묶음 전체» 로 오해해
+            # 경계를 0.14배로 줄여 버린다 — 그 사고를 한 번 겪었다.
+            if per:
+                print(f"  · 씬 {rest} — 아직 영상이 없어 건드리지 않습니다 "
+                      f"({P.upload / bdir_name})")
+                continue
 
             clip = find_bundle_clip(src, bno, bdir_name)
             if clip is None:

@@ -241,6 +241,7 @@ select, input[type="text"] {
 .sub-stat { font-size: 12.5px; color: var(--text-2); margin-left: auto; }
 .cue-wrap { max-width: 900px; }
 .cue-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.cue-list .job-empty { display: block; }
 .cue-list li {
   display: grid; grid-template-columns: 40px 96px 1fr 40px; gap: 10px;
   align-items: center; background: var(--bone); border-radius: 9px;
@@ -640,7 +641,7 @@ body.rail-off .conn-text { display: none; }
 .step.on .step-no { background: var(--brand); color: #fff; }
 
 .step-no {
-  flex: 0 0 22px; height: 22px;
+  flex: 0 0 26px; height: 22px;
   display: grid; place-items: center;
   border-radius: 6px; background: rgb(var(--idle-rgb) / .18); color: var(--text-3);
   font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums;
@@ -677,6 +678,9 @@ body.rail-off .conn-text { display: none; }
   content: ""; flex: 1; height: 1px; background: var(--hairline);
 }
 .step-rule span { flex: none; }
+/* 글자 없는 선 — 위아래 여백만 좁힌다. 「다국어 자막」을 위아래로
+   감싸 «01 을 더 채우는 곁가지» 임을 선만으로 말한다. */
+.step-rule.bare { margin: 7px 4px; gap: 0; }
 
 /* == 스타일 고르기 =========================================================
    둘뿐이라 라디오다. 그림은 CSS 상자 몇 개로 그린다 — 스크린샷을 넣으면
@@ -817,3 +821,50 @@ body.rail-off .conn-text { display: none; }
 .style-fig { height: 96px; }
 .style-box em { font-size: 12px; line-height: 1.45; }
 .lec-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── 묶음 홀짝 ────────────────────────────────────────────────────────────
+   45분 강의는 5묶음으로 갈린다. 그 경계는 이름이 아니라 «색» 으로 보여야
+   훑을 때 걸린다. 홀수·짝수 두 색만 쓴다 — 다섯 색을 쓰면 색이 뜻을 잃는다.
+   왼쪽 세로 띠로 표시해 카드 안의 노란 눈금(진행)과 헷갈리지 않게 한다. */
+[data-bundle] { border-left-width: 3px; border-left-style: solid; }
+[data-bundle="odd"]  { border-left-color: #7C9A6E; background: #F7F9F4; }
+[data-bundle="even"] { border-left-color: #8A7CA8; background: #F8F6FB; }
+
+.sc-b { margin-left: 7px; margin-right: auto; font-size: 10px; letter-spacing: .02em;
+  padding: 1px 6px; border-radius: 999px; color: var(--text-2);
+  background: rgba(0, 0, 0, .05); white-space: nowrap; }
+[data-bundle="odd"]  .sc-b { background: #E3EBDD; color: #4C6440; }
+[data-bundle="even"] .sc-b { background: #E7E1F0; color: #55496B; }
+
+/* ── 눌러야 하나 ──────────────────────────────────────────────────────────
+   글자 색 하나로 «지금 내 차례인가» 를 말한다. 아직 안 만든 단계만 눈에
+   걸리게 하고, 다 된 단계는 물러나 있게 한다. */
+.run-must { font-size: 11px; font-weight: 700; letter-spacing: .01em;
+  padding: 1px 7px; border-radius: 999px; white-space: nowrap; }
+.run-must.must { background: #FDF0D5; color: #8A6100; }
+.run-must.part { background: #FBF3DC; color: #7A6528; }
+.run-must.done { background: transparent; color: var(--text-3); font-weight: 600; }
+/* 재실행은 «다시 굽는 일» 이라 앞으로 나서지 않는다 */
+.btn-ink.btn-again { background: var(--bone); color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--hairline); }
+
+/* ── 보내기 / 받기 ────────────────────────────────────────────────────────
+   이 단계만 내 컴퓨터 밖을 다닌다. 방향을 색으로 못 박아, 칸을 훑기 전에
+   «지금 어느 쪽 일인가» 가 먼저 읽히게 한다. */
+.way { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .04em;
+  padding: 2px 7px; border-radius: 999px; margin-right: 7px; vertical-align: 1px; }
+.way-out { background: #E7E1F0; color: #55496B; }   /* 나가는 것 */
+.way-in  { background: #DCE8DA; color: #2F5B34; }   /* 들어오는 것 */
+
+.file-list { margin-top: 8px; display: grid; gap: 3px; }
+.file { display: flex; align-items: baseline; gap: 8px; font-size: 12px; }
+.file-k { flex: 0 0 34px; font-size: 10px; font-weight: 700; font-style: normal;
+  text-align: center; padding: 1px 0; border-radius: 4px;
+  background: rgb(0 0 0 / .05); color: var(--text-2); }
+.file-k.ok { background: var(--ok-bg); color: var(--ok); }
+.file-n { flex: 1 1 auto; min-width: 0; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-s { flex: none; font-size: 11px; color: var(--text-3);
+  font-variant-numeric: tabular-nums; }
+.bundle-acts { margin-top: 9px; display: flex; align-items: center; gap: 10px; }
+.bundle-hint { font-size: 11px; color: var(--text-3); }

@@ -19,21 +19,36 @@ const CUE_MAX = { ru: 42, uz: 46, en: 46, ko: 30 };
 
 /* ── 단계 ────────────────────────────────────────────────────────────────
  * page   : index.html 의 data-page
+ * dir    : 이 단계가 **쓰는 폴더**. 화면의 번호가 곧 디스크의 번호다 —
+ *          «3단계 결과가 어디 있나» 를 물을 일이 없게. 1..9 순번을 따로
+ *          매기면 순번과 폴더가 어긋나 둘 다 외워야 한다.
+ *          다국어 자막이 01 인 것은 실수가 아니다. 씬이 잘라 놓은
+ *          01/subs 에 언어를 **더 얹는** 일이라 같은 폴더가 맞다.
  * run    : 이 단계가 돌리는 파이프라인 조각 (없으면 실행 없는 화면)
  * costs  : 아바타 업체를 실제로 부르는 단계 — $ 가 붙는다
- * rule   : 이 앞에 「넘기는 것」 구분선을 긋는다
+ * rule   : 이 앞에 가로선을 긋는다. 글자를 주면 선 가운데에 얹는다.
+ *          빈 글자는 «여기서 결이 바뀐다» 만 말하는 민 선이다.
  */
 const STEPS = [
-  { page: "p0",   name: "재료" },
-  { page: "p1",   name: "씬",     run: "p1" },
-  { page: "p2",   name: "목소리", run: "p2" },
-  { page: "p2b",  name: "다국어 자막", run: "p2b" },
-  { page: "p3",   name: "자막",   run: "p3" },
-  { page: "p3b",  name: "묶음",   run: "p3b" },
-  { page: "p4",   name: "아바타", run: "p4", costs: true },
-  { page: "p5",   name: "빌드",   run: "p5" },
-  { page: "done", name: "결과",   rule: true },
+  { page: "p0",   dir: "00", name: "재료" },
+  { page: "p1",   dir: "01", name: "씬",     run: "p1" },
+  { page: "p2",   dir: "02", name: "목소리", run: "p2" },
+  { page: "p2b",  dir: "01", name: "다국어 자막", run: "p2b", rule: "" },
+  { page: "p3",   dir: "03", name: "자막",   run: "p3", rule: "" },
+  { page: "p3b",  dir: "05", name: "묶음",   run: "p3b" },
+  { page: "p4",   dir: "07", name: "아바타", run: "p4", costs: true },
+  { page: "p5",   dir: "09", name: "완성본", run: "p5" },
 ];
+// 폴더마다 무엇이 담기는지 — 번호에 마우스를 올리면 뜬다
+const DIR_SAY = {
+  "00": "재료 — 원본 mp4 · 자막 · 슬라이드",
+  "01": "씬별로 자른 슬라이드와 자막 (언어마다 한 벌)",
+  "02": "씬별 목소리 wav",
+  "03": "목소리 길이에 맞춘 자막",
+  "05": "업체에 올릴 묶음 — 올릴음성.mp3",
+  "07": "받아 온 아바타 영상",
+  "09": "완성본",
+};
 // ★ 고른 강의. lectures.js 가 갈아 끼우고 localStorage 에 남긴다 —
 //   창을 다시 열어도 아까 고른 강의로 돌아온다. 120강이 쌓이면
 //   «어느 강의였지» 를 매번 다시 고르게 하면 안 된다.
@@ -85,19 +100,22 @@ function stepState(page) {
     p2: j.scenes.filter((s) => s.voice).length,
     p2b: j.scenes.filter((s) => s.cues > 0).length,
     p3: j.scenes.filter((s) => s.voice && s.cues > 0).length,
+    // 묶음은 씬마다 세는 게 아니라 «있냐 없냐» 다 — 5개가 있으면 전부 된 것
+    p3b: j.bundles > 0 ? n : 0,
     p4: j.scenes.filter((s) => s.avatar).length,
     p5: j.scenes.filter((s) => s.preview).length,
-    done: j.all ? n : 0,
   }[page] || 0;
   return got >= n ? "done" : got > 0 ? "part" : "";
 }
 
 function renderSteps() {
   const cur = (location.hash || "#/p0").replace("#/", "");
-  $("#steps").innerHTML = STEPS.map((st, i) => `
-    ${st.rule ? '<div class="step-rule"><span>넘기는 것</span></div>' : ""}
+  $("#steps").innerHTML = STEPS.map((st) => `
+    ${st.rule != null
+        ? `<div class="step-rule${st.rule ? "" : " bare"}"><span>${st.rule}</span></div>`
+        : ""}
     <button class="step ${cur === st.page ? "on" : ""}" data-page="${st.page}">
-      <span class="step-no">${i + 1}</span>
+      <span class="step-no" title="강의/${TASK || "<강의>"}/${st.dir}/ — ${DIR_SAY[st.dir] || ""}">${st.dir}</span>
       <span class="step-name">${st.name}</span>
       ${st.costs ? '<span class="cost" title="돈이 드는 단계입니다">$</span>' : ""}
       <span class="step-dot ${stepState(st.page)}"></span>
@@ -119,9 +137,9 @@ function route() {
   if (to === "p2") drawScenes("#p2-out", "p2");
   if (to === "p2b") drawScenes("#p2b-out", "p2b");
   if (to === "p3") loadSubs();
-  if (to === "p4") drawScenes("#p4-out", "p4");
-  if (to === "p5") drawScenes("#p5-out", "p5");
-  if (to === "done") drawDone();
+  if (to === "p3b") loadBundles();      // ★ 강의를 갈아탄 뒤에도 그 강의의 묶음을 본다
+  if (to === "p4") { drawScenes("#p4-out", "p4"); loadBundles(); }
+  if (to === "p5") { drawDone(); drawScenes("#p5-out", "p5"); }
   drawNotes();
 }
 
@@ -232,22 +250,32 @@ function drawNotes() {
     ? `자막은 <b>목소리 길이에 맞춰</b> 시각이 다시 매겨집니다. 문구를 고치면 저장만 하면 됩니다.`
     : "");
 
+  drawRun();
+
   const av = $("#sc-avatar").value;
   const dropRow = $("#p4-drop-row");
   if (dropRow) dropRow.hidden = av !== "drop";
   set("#p4-say", av === "stub"
     ? "사람 모양 <b>임시 아바타</b>를 넣습니다 — 배경이 투명해서 진짜 아바타가 오면 같은 자리에 그대로 들어갑니다. <b>0원</b>."
     : av === "drop"
-    ? "묶음 폴더의 <b>올릴음성.mp3</b> 을 HeyGen 웹에 드래그드랍해 렌더하고, 내려받은 영상을 "
-      + "<b>그 폴더에 되돌려 놓으면</b> 여기서 붙입니다. 영상은 <b>자르지 않습니다</b> — "
-      + "씬마다 «어디서부터 몇 초»만 적어 두고 다음 단계가 그 구간만 읽습니다. "
-      + "<b>웹 월정액이 API 보다 3~4배 쌉니다.</b>"
+    ? "<b>1</b> 아래 <b>묶음 폴더 열기</b>를 눌러 <b>올릴음성.mp3</b> 를 꺼냅니다"
+      + " (씬을 나눠 받으려면 <b>장면\</b> 안의 mp3 를 씁니다). "
+      + "<b>2</b> HeyGen 웹에 드래그드랍해 렌더하고 내려받습니다. "
+      + "<b>3</b> 받은 영상을 <b>그 묶음 폴더에 되돌려</b> 놓습니다. "
+      + "<b>4</b> 여기서 <b>실행</b>을 누릅니다 — 영상은 <b>자르지 않습니다</b>. "
+      + "씬마다 «어디서부터 몇 초»만 적어 두고 다음 단계가 그 구간만 읽습니다."
     : `<b style="color:var(--err)">HeyGen API 를 부릅니다 — 초당 과금입니다.</b> `
       + (HEYGEN && HEYGEN.rate_now
           ? `${HEYGEN.engine} · 초당 $${HEYGEN.rate_now}`
           : "")
       + (HEYGEN && HEYGEN.ok ? "" : ` ${HEYGEN ? HEYGEN.why : ""}`));
-  set("#p4-note", j ? `아바타 있는 씬 <b>${j.scenes.filter((s) => s.avatar).length}/${n}</b>` : "");
+  const noAv = j ? j.scenes.filter((s) => !s.avatar).map((s) => s.no) : [];
+  set("#p4-note", j
+    ? `아바타 있는 씬 <b>${n - noAv.length}/${n}</b>`
+      + (noAv.length && noAv.length < n
+          ? ` · 남은 씬 <b>${noAv.slice(0, 8).join(",")}${noAv.length > 8 ? "…" : ""}</b>`
+          : "")
+    : "");
 
   const sm = $("#sc-submode").value;
   $("#p5-style").value = STYLE_NAME[styleOf()];
@@ -260,7 +288,7 @@ function drawNotes() {
   set("#p5-note", j ? `구운 씬 <b>${j.scenes.filter((s) => s.preview).length}/${n}</b>` : "");
 }
 for (const id of ["#sc-voice", "#sc-avatar", "#sc-submode", "#sc-fit"])
-  $(id).onchange = drawNotes;
+  $(id).onchange = () => { drawNotes(); drawAvatar(); };
 
 
 /* ── 다국어 자막 — 언어 고르기 ──────────────────────────────
@@ -277,13 +305,19 @@ async function loadLangs() {
     sel.value = localStorage.getItem("sc.scriptlang") || "uz";
     sel.onchange = () => localStorage.setItem("sc.scriptlang", sel.value);
   }
-  const saved = localStorage.getItem("sc.sublangs");
-  picked = saved ? saved.split(",").filter(Boolean)
-                 : [(STATE.scenes[0] || {}).sub_lang || "ru"];
+  // ★ 맨 앞은 **처음에 넣은 자막의 언어**다. 고르는 것이 아니라 이미 있는 것이라
+  //   목록에서 빠질 수 없다 — 이것이 영상에 구워지는 언어이기도 하다.
+  //   localStorage 에 옛 선택이 남아 있어도 기본은 늘 앞에 되박는다.
+  const saved = (localStorage.getItem("sc.sublangs") || "").split(",").filter(Boolean);
+  picked = [...new Set([baseLang(), ...saved])].filter(Boolean);
   drawLangs();
 }
 
 const langByTag = (tag) => LANGS.langs.find((l) => l.tag === tag);
+
+/* 처음에 넣은 자막의 언어. 00/ 의 srt 가 무슨 말이었나 — p1 이 scenes.json 에
+   `sub_lang` 으로 적어 둔다. 강의를 안 골랐으면 «ru» 로 떨어뜨린다. */
+const baseLang = () => (STATE.scenes[0] || {}).sub_lang || "ru";
 
 function drawLangs() {
   localStorage.setItem("sc.sublangs", picked.join(","));
@@ -292,18 +326,22 @@ function drawLangs() {
   // 고른 것 — 맨 앞이 기본 자막이다. 줄 수를 같이 보여 준다.
   const host = $("#lang-picked");
   if (host) {
-    host.innerHTML = picked.length
-      ? picked.map((tag, i) => {
-          const l = langByTag(tag);
-          const n = j && tag === j.sub_lang
-            ? j.scenes.reduce((a, s) => a + s.cues, 0) : 0;
-          return `<span class="lang-chip on" data-drop="${tag}">` +
-            `<b>${l ? l.native : tag}</b> ${l ? l.name : ""}` +
-            (i === 0 ? '<i class="lang-first">기본</i>' : "") +
-            (n ? `<i class="lang-n">${n}줄</i>` : "") +
-            `<i class="lang-x">×</i></span>`;
-        }).join("")
-      : '<span class="job-empty">아직 안 골랐습니다.</span>';
+    const base = baseLang();
+    const have = (j && j.langs_have) || [];
+    host.innerHTML = picked.map((tag) => {
+      const l = langByTag(tag);
+      const fixed = tag === base;
+      const n = j && have.includes(tag)
+        ? j.scenes.reduce((a, s) => a + s.cues, 0) : 0;
+      // 기본은 못 뺀다 — data-drop 을 안 달아 클릭이 아무 일도 안 하게 한다
+      return `<span class="lang-chip on${fixed ? " lang-fixed" : ""}"` +
+        (fixed ? "" : ` data-drop="${tag}"`) + `>` +
+        `<b>${l ? l.native : tag}</b> ${l ? l.name : ""}` +
+        (fixed ? '<i class="lang-first">넣은 것 · 기본</i>'
+               : (n ? '<i class="lang-n">있음</i>' : "")) +
+        (n && fixed ? `<i class="lang-n">${n}줄</i>` : "") +
+        (fixed ? "" : '<i class="lang-x">×</i>') + `</span>`;
+    }).join("");
   }
 
   // 전체 목록 — 문자 체계로 묶고 자/초를 같이 적는다
@@ -316,12 +354,54 @@ function drawLangs() {
       const cps = [...new Set(ls.map((l) => l.cps))].sort((a, b) => a - b);
       return `<div class="lang-group"><div class="lang-gh">${label}` +
         `<span class="lang-cps">${cps.join("~")}자/초</span></div>` +
-        `<div class="lang-row">` + ls.map((l) =>
-          `<button type="button" class="lang-chip${picked.includes(l.tag) ? " on" : ""}" ` +
-          `data-add="${l.tag}" title="${l.name} · 꼬리표 ${l.tag} · ${l.cps}자/초">` +
-          `<b>${l.native}</b> ${l.name} <i class="lang-tag">${l.tag}</i></button>`).join("") +
+        `<div class="lang-row">` + ls.map((l) => {
+          const fixed = l.tag === baseLang();
+          const made = ((STATE.scenes[0] || {}).langs_have || []).includes(l.tag);
+          return `<button type="button" class="lang-chip` +
+            (picked.includes(l.tag) ? " on" : "") + (fixed ? " lang-fixed" : "") + `" ` +
+            (fixed ? "" : `data-add="${l.tag}" `) +
+            `title="${l.name} · 꼬리표 ${l.tag} · ${l.cps}자/초` +
+            (fixed ? " · 처음에 넣은 자막이라 뺄 수 없습니다" : "") + `">` +
+            `<b>${l.native}</b> ${l.name} <i class="lang-tag">${l.tag}</i>` +
+            (fixed ? '<i class="lang-n">기본</i>'
+                   : (made ? '<i class="lang-n">있음</i>' : "")) + `</button>`;
+        }).join("") +
         `</div></div>`;
     }).join("");
+  }
+}
+
+/* ── 눌러야 하나 ──────────────────────────────────────────────────────────
+ * 「실행」이 늘 같은 말이면 «지금 눌러야 하는 것인지» 를 화면이 안 알려 준다.
+ * 이미 산출물이 있는 단계는 누르면 **다시 만드는** 것이라 말을 바꾼다 —
+ *   없음 → 「실행」  + 눌러야 합니다
+ *   일부 → 「이어서」 + 남은 것만 채웁니다
+ *   전부 → 「재실행」 + 고칠 때만 누르세요
+ * 되돌릴 수 없는 일이 아니어도, 8분짜리를 다시 굽는 데 드는 시간은 실제다.
+ */
+function drawRun() {
+  const SAY = {
+    "":     ["실행",   "must", "눌러야 합니다"],
+    part:   ["이어서", "part", "남은 것만 채웁니다"],
+    done:   ["재실행", "done", "다 됐습니다 — 고칠 때만 누르세요"],
+  };
+  for (const st of STEPS) {
+    if (!st.run) continue;
+    const b = $(`#btn-${st.run}`);
+    const note = $(`#${st.run}-note`);
+    const [word, cls, why] = SAY[stepState(st.page)] || SAY[""];
+    if (b) {
+      const lab = b.querySelector("span:last-child");
+      if (lab) lab.textContent = word;
+      b.classList.toggle("btn-again", word === "재실행");
+    }
+    if (note && !note.querySelector(".run-must")) {
+      note.insertAdjacentHTML("beforeend",
+        ` <b class="run-must ${cls}">${why}</b>`);
+    } else if (note) {
+      const m = note.querySelector(".run-must");
+      m.className = `run-must ${cls}`; m.textContent = why;
+    }
   }
 }
 
@@ -329,12 +409,15 @@ document.addEventListener("click", (e) => {
   const add = e.target.closest("[data-add]");
   if (add) {
     const tag = add.dataset.add;
+    if (tag === baseLang()) return;                       // 기본은 못 뺀다
     picked = picked.includes(tag) ? picked.filter((x) => x !== tag) : [...picked, tag];
     drawLangs(); drawNotes(); return;
   }
   const drop = e.target.closest("[data-drop]");
   if (drop) {
-    picked = picked.filter((x) => x !== drop.dataset.drop);
+    if (drop.dataset.drop !== baseLang()) {
+      picked = picked.filter((x) => x !== drop.dataset.drop);
+    }
     drawLangs(); drawNotes();
   }
 });
@@ -427,6 +510,9 @@ function drawScenes(hostSel, forStep) {
     const ready = { p1: s.slide, p2: s.voice, p2b: s.cues > 0,
                     p3: s.voice && s.cues > 0, p4: s.avatar, p5: !!s.preview }[forStep];
     c.className = "sc-card" + (ready ? "" : " pending");
+    // 묶음이 갈리는 자리는 색으로 보인다 — 홀수 묶음과 짝수 묶음이 서로 다른
+    // 바닥색을 쓴다. 어느 씬이 어느 묶음에 실려 업체로 가는지 세지 않아도 되게.
+    if (s.bundle) c.dataset.bundle = (s.bundle % 2) ? "odd" : "even";
     // 4칸 = 슬라이드 · 목소리 · 아바타 · 검수본. 씬마다 어디까지 됐는지
     // 한눈에 보이게 — 목록을 훑으며 «이 씬은 아바타가 왔나» 를 세지 않아도 되게.
     const dots = [["슬라이드", s.slide], ["목소리", s.voice],
@@ -434,6 +520,7 @@ function drawScenes(hostSel, forStep) {
       .map(([lab, on]) => `<i class="${on ? "on" : ""}" title="${lab}"></i>`).join("");
     c.innerHTML =
       `<div class="sc-h"><span class="sc-no">${String(s.no).padStart(2, "0")}</span>` +
+      (s.bundle ? `<span class="sc-b">묶음 ${s.bundle}</span>` : "") +
       `<span class="dots">${dots}</span></div>` +
       `<div class="sc-t" title="${s.title}">${s.title}</div>` +
       `<div class="sc-m">${mmss(s.dur)} · 자막 ${s.cues}개` +
@@ -490,8 +577,6 @@ function drawDone() {
   box.appendChild(acts);
   host.appendChild(box);
   hydrateIcons(box);
-  drawScenes("#sc-out", "p5");
-  host.insertBefore(box, host.firstChild);
 }
 
 /* ── 4 자막 ────────────────────────────────────────────────── */
@@ -505,8 +590,15 @@ async function loadSubs(file) {
   try {
     d = await api(`/api/scene-subs?task=${encodeURIComponent(task())}` +
                   (file ? `&file=${encodeURIComponent(file)}` : ""));
-  } catch { $("#cue-list").innerHTML =
-      '<li class="job-empty">아직 자막이 없습니다 — 3 목소리를 먼저 만드세요.</li>'; return; }
+  } catch (e) {
+    // 어디를 봤는데 없었는지 말한다. «먼저 만드세요» 만 띄우면 이미 만들어 둔
+    // 사람은 무엇이 틀렸는지 알 길이 없다.
+    $("#cue-list").innerHTML =
+      `<li class="job-empty">«${task()}» 의 <code>03</code> 에서 자막을 못 읽었습니다 — ` +
+      `${e.message}. 강의를 다시 고르거나 <b>03 자막</b>을 실행하세요.</li>`;
+    $("#sub-scene").innerHTML = "";
+    return;
+  }
   const sel = $("#sub-scene");
   sel.innerHTML = "";
   for (const f of d.files) {
@@ -574,7 +666,7 @@ function drawJobs() {
   }
   for (const j of rows) {
     const li = document.createElement("li");
-    const dots = STEPS.filter((s) => s.run || s.page === "done")
+    const dots = STEPS.filter((s) => s.run)
       .map((s) => `<i class="${stepState(s.page) === "done" ? "on" : ""}" title="${s.name}"></i>`)
       .join("");
     li.innerHTML = `<button type="button"><span class="job-name">${j.task}</span>` +
@@ -765,6 +857,16 @@ async function loadLectures() {
   try {
     const r = await api("/api/lectures");
     LECS = r.lectures || [];
+    // ★ 저장해 둔 강의 이름이 지금 «강의/» 에 없으면 버린다. 폴더 이름을
+    //   바꾸거나 지운 뒤에도 그 이름을 붙들면, 화면이 없는 폴더를 보며
+    //   «아직 안 만들었습니다» 만 되풀이한다 (묶음도 자막도 같이 빈다).
+    if (TASK && !LECS.some((L) => L.task === TASK)) {
+      const was = TASK;
+      TASK = "";
+      localStorage.removeItem("sc.task");
+      toast(`«${was}» 강의가 없어 «${(LECS[0] || {}).task || "없음"}» 으로 돌립니다`);
+      refresh().then(() => { loadBundles(); }).catch(() => {});
+    }
     const el = $("#lec-hint");
     if (!LECS.length) {
       el.innerHTML = `<b>강의가 없습니다.</b> <code>${r.dir}</code> 안에 폴더를 만들고 `
@@ -823,6 +925,90 @@ function pickLecture(L) {
   refresh().then(() => { loadBundles(); }).catch(() => {});
 }
 
+/* 탐색기로 그 자리를 연다. 경로를 글자로만 보여 주면 사람이 그걸 복사해
+   붙여 넣는 일을 대신 한다 — 120강이면 그 품이 그대로 쌓인다. */
+function openHere(path) {
+  post("/api/open", { path })
+    .then(() => toast("폴더를 열었습니다"))
+    .catch((e) => toast(e.message, true));
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-open]");
+  if (b) openHere(b.dataset.open);
+});
+
+/* ── 아바타 — 보낼 것 / 받은 것 ────────────────────────────────────────────
+ * 이 단계만 «내 컴퓨터 밖» 을 다닌다. 그래서 화면도 두 방향으로 갈라 둔다.
+ * 보내기 칸은 **꺼낼 mp3**, 받기 칸은 **되돌려 놓은 영상**만 말한다.
+ */
+function drawAvatar() {
+  const send = $("#p4-send"), recv = $("#p4-recv");
+  if (!send || !recv) return;
+  const rows = BUNDLES.bundles || [];
+  const drop = ($("#sc-avatar") || {}).value === "drop";
+  for (const c of ["#p4-out-card", "#p4-in-card"]) {
+    const el = $(c); if (el) el.hidden = !drop;
+  }
+  if (!drop) return;
+  if (!rows.length) {
+    send.innerHTML = recv.innerHTML =
+      '<p class="sc-hint">묶음이 없습니다 — <b>05 묶음</b>에서 먼저 만드세요.</p>';
+    return;
+  }
+
+  // 올릴 mp3 는 세 갈래다: 통째 하나 · 장면별 · 씬별. 갈래를 적어 줘야
+  // «어느 걸 올려야 하나» 를 파일 이름으로 추측하지 않는다.
+  const kind = (rel) => rel.startsWith("장면/") ? "장면"
+    : rel.startsWith("씬/") ? "씬" : "통째";
+  send.innerHTML = "";
+  recv.innerHTML = "";
+  for (const b of rows) {
+    const odd = (Number(b.no) % 2) ? "odd" : "even";
+    const nos = b.scenes || [];
+    const head = `<div class="bundle-h"><b>묶음 ${b.no}</b>` +
+      `<span class="bundle-sec">씬 ${nos[0]}~${nos[nos.length - 1]} · ${mmss(b.sec)}</span></div>`;
+    const open = `<button type="button" class="btn-plain" data-open="${b.path}">` +
+      `<span data-icon="folder" data-icon-size="14"></span><span>폴더 열기</span></button>`;
+
+    // ── 보내기 ──────────────────────────────────────────────────────────
+    const mp3 = (b.mp3s || []).filter((m) => kind(m.rel) !== "씬");
+    const nSc = (b.mp3s || []).length - mp3.length;
+    const sd = document.createElement("div");
+    sd.className = "bundle"; sd.dataset.bundle = odd;
+    sd.innerHTML = head + `<div class="file-list">` + mp3.map((m) =>
+        `<div class="file"><i class="file-k">${kind(m.rel)}</i>` +
+        `<span class="file-n">${m.rel}</span>` +
+        `<span class="file-s">${mmss(m.sec)} · ${m.mb}MB</span></div>`).join("")
+      + (nSc ? `<div class="file"><i class="file-k">씬</i>` +
+               `<span class="file-n">씬별로 ${nSc}개</span>` +
+               `<span class="file-s">씬마다 따로 뽑을 때</span></div>` : "")
+      + `</div><div class="bundle-acts">${open}</div>`;
+    send.appendChild(sd);
+
+    // ── 받기 ────────────────────────────────────────────────────────────
+    const vids = b.vids || [];
+    const av = b.avatar_scenes || [];
+    const left = nos.filter((n) => !av.includes(n));
+    const rd = document.createElement("div");
+    rd.className = "bundle"; rd.dataset.bundle = odd;
+    rd.innerHTML = head
+      + (vids.length
+          ? `<div class="file-list">` + vids.map((v) =>
+              `<div class="file"><i class="file-k ok">영상</i>` +
+              `<span class="file-n">${v.name}</span>` +
+              `<span class="file-s">${mmss(v.sec)} · ${v.mb}MB</span></div>`).join("")
+            + `</div>`
+          : `<p class="sc-hint">아직 받은 영상이 없습니다 — 위 칸의 mp3 를 올리세요.</p>`)
+      + `<div class="bundle-sub">` + (left.length
+          ? (av.length ? `붙은 씬 <b>${av.join(",")}</b> · ` : "")
+            + `남은 씬 <b>${left.join(",")}</b>`
+          : `<b style="color:var(--ok)">씬 ${nos.join(",")} 전부 붙었습니다</b>`)
+      + `</div><div class="bundle-acts">${open}</div>`;
+    recv.appendChild(rd);
+  }
+  hydrateIcons(send); hydrateIcons(recv);
+}
+
 /* ── 묶음 ───────────────────────────────────────────────────── */
 
 async function loadBundles() {
@@ -832,6 +1018,7 @@ async function loadBundles() {
     BUNDLES = { bundles: [], upload: "" };
   }
   drawBundles();
+  drawAvatar();
 }
 
 function drawBundles() {
@@ -852,17 +1039,26 @@ function drawBundles() {
     const state = got >= n
       ? `<b style="color:var(--ok)">아바타 받음</b>`
       : `아바타 <b>안 받음</b> — 올릴음성.mp3 을 업체에 넣으세요`;
+    const dir = `${BUNDLES.upload}\${b.dir || ("bundle" + String(b.no).padStart(2, "0"))}`;
     const d = document.createElement("div");
     d.className = "bundle";
+    d.dataset.bundle = (Number(b.no) % 2) ? "odd" : "even";   // 씬 카드와 같은 색
     d.innerHTML =
       `<div class="bundle-h"><b>${b.dir || ("bundle" + String(b.no).padStart(2, "0"))}</b>`
       + `<span class="bundle-sec">${m}:${String(s).padStart(2, "0")}</span></div>`
       + `<div class="bundle-sub">씬 ${b.scenes[0]}~${b.scenes[b.scenes.length - 1]} `
       + `(${n}개) · ${state}</div>`
       + `<div class="bundle-t">${(b.titles || []).slice(0, 3).map((t) =>
-            `<span>${(t || "").slice(0, 30)}</span>`).join("")}</div>`;
+            `<span>${(t || "").slice(0, 30)}</span>`).join("")}</div>`
+      + `<div class="bundle-acts">`
+      + `<button type="button" class="btn-plain" data-open="${dir}">`
+      + `<span data-icon="folder" data-icon-size="14"></span>`
+      + `<span>폴더 열기 — 올릴음성.mp3</span></button>`
+      + `<span class="bundle-hint">여기서 mp3 를 꺼내 HeyGen 에 올리고, `
+      + `<b>받은 영상을 이 폴더에 되돌려</b> 놓으세요</span></div>`;
     host.appendChild(d);
   }
+  hydrateIcons(host);
   const el = $("#bundle-where");
   if (el && BUNDLES.upload) {
     el.innerHTML = `묶음 폴더는 <code>${BUNDLES.upload}</code> 에 있습니다. `

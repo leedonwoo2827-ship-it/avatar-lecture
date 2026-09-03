@@ -188,6 +188,46 @@ def run_one_step(step: str, opts: dict) -> None:
 
 # ══ 상태 읽기 ═══════════════════════════════════════════════════════════════
 
+AUDIO_EXTS = (".mp3", ".wav", ".m4a", ".aac")
+VIDEO_EXTS = (".webm", ".mp4", ".mov", ".mkv", ".m4v")
+_dur_seen: dict[tuple[str, int, int], float] = {}
+
+
+def media_dur(f: Path) -> float:
+    """길이(초). ffprobe 를 부르지만 **파일이 그대로면 다시 안 부른다** —
+    화면을 열 때마다 열다섯 번 부르면 그만큼 늦어진다."""
+    try:
+        st = f.stat()
+    except OSError:
+        return 0.0
+    key = (str(f), int(st.st_mtime), st.st_size)
+    if key in _dur_seen:
+        return _dur_seen[key]
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=nw=1:nk=1", str(f)],
+            capture_output=True, text=True, timeout=20)
+        v = float((out.stdout or "0").strip() or 0)
+    except Exception:  # noqa: BLE001 — 길이를 못 재도 목록은 나와야 한다
+        v = 0.0
+    _dur_seen[key] = v
+    return v
+
+
+def media_in(d: Path, exts: tuple[str, ...]) -> list[dict]:
+    r"""폴더 안의 그 종류 파일들. `장면\` 같은 하위 폴더까지 훑는다."""
+    if not d.is_dir():
+        return []
+    got = sorted(x for x in d.rglob("*")
+                 if x.is_file() and x.suffix.lower() in exts)
+    return [{"name": x.name,
+             "rel": str(x.relative_to(d)).replace("\\", "/"),
+             "path": str(x),
+             "sec": round(media_dur(x), 1),
+             "mb": round(x.stat().st_size / 1_048_576, 1)} for x in got]
+
+
 def scene_rows() -> list[dict]:
     """build/ 안의 씬 작업들 — 씬마다 어디까지 됐는지 그대로 보여 준다."""
     rows: list[dict] = []
@@ -201,10 +241,17 @@ def scene_rows() -> list[dict]:
             meta = load_json(mp)
         except Exception:  # noqa: BLE001 — 깨진 json 이 목록을 막지 않게
             continue
+        # 씬 → 묶음 번호. 씬 목록을 묶음 단위로 색칠하려면 씬마다 «몇 번째
+        # 묶음인가» 를 알아야 한다. 묶음을 아직 안 만들었으면 전부 0 이다.
+        of_bundle: dict[int, int] = {}
+        for i, b in enumerate(meta.get("bundles", []), 1):
+            for n in b.get("scenes", []):
+                of_bundle[int(n)] = int(b.get("no") or i)
         scenes = []
         for r in meta.get("scenes", []):
             scenes.append({
                 "no": r["no"], "title": r.get("title", ""),
+                "bundle": of_bundle.get(int(r["no"]), 0),
                 "dur": r.get("voice_dur") or r.get("script_dur") or 0,
                 "cues": r.get("cues", 0), "over": r.get("cue_over", 0),
                 "slide": bool(r.get("slide")),
@@ -215,14 +262,25 @@ def scene_rows() -> list[dict]:
             })
         # 이어 붙인 파일 이름은 스타일에 따라 all-panel.mp4 처럼 바뀐다.
         # p5 가 scenes.json 에 적어 두지만, 옛 산출을 위해 폴더도 한 번 뒤진다.
+        # 이미 만들어 둔 자막 언어. «무엇을 더 만들까» 를 고르는 화면이
+        # 무엇이 이미 있는지 모르면, 넣어 둔 원본을 골라 지우게 된다.
+        P = scene_paths(d.name)
+        have = sorted({x.name.split(".")[-2] for x in P.subs.glob("scene*.*.srt")
+                       } if P.subs.is_dir() else set())
+        done = sorted({x.name.split(".")[-2] for x in P.aligned.glob("scene*.*.srt")
+                       } if P.aligned.is_dir() else set())
+
+        pv = P.preview                            # 09/ — 옛 preview/ 가 아니다
         named = meta.get("all") or ""
-        joined = d / "preview" / named if named else None
+        joined = pv / named if named else None
         if joined is None or not joined.is_file():
-            found = sorted((d / "preview").glob("all*.mp4")) if (d / "preview").is_dir() else []
-            joined = found[-1] if found else (d / "preview" / "all.mp4")
+            found = sorted(pv.glob("all*.mp4")) if pv.is_dir() else []
+            joined = found[-1] if found else (pv / "all.mp4")
         rows.append({
             "task": d.name, "path": str(d),
             "sub_lang": meta.get("sub_lang", ""),
+            "langs_have": have,                   # 01/subs 에 있는 언어
+            "langs_done": done,                   # 03 에 맞춰 둔 언어
             "layout": meta.get("layout", ""),
             "total": meta.get("voice_total_sec") or meta.get("total_sec") or 0,
             "scenes": scenes,
@@ -230,7 +288,7 @@ def scene_rows() -> list[dict]:
             # 묶음 개수 — 화면의 «묶음» 단계가 이 값으로 «아직 안 만들었습니다» 를
             # 판단한다. 없으면 5개가 있어도 안 만든 것으로 나온다.
             "bundles": len(meta.get("bundles", [])),
-            "preview_dir": str(d / "preview"),
+            "preview_dir": str(pv),
             "src": {"script": meta.get("script", ""), "subs": meta.get("subs", ""),
                     "slides": meta.get("slides", "")},
         })
@@ -629,14 +687,23 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:  # noqa: BLE001
                 return self._json({"bundles": [], "upload": ""})
             by_no = {int(r["no"]): r for r in meta.get("scenes", [])}
+            up = scene_paths(name).upload
             rows = []
             for b in meta.get("bundles", []):
                 nos = [int(x) for x in b.get("scenes", [])]
+                bdir = up / str(b.get("dir") or f"bundle{int(b['no']):02d}")
                 rows.append({
                     **b,
+                    "path": str(bdir),
+                    # ★ 올릴 것과 받은 것을 **따로** 준다. 이 두 방향이 한 칸에
+                    #   섞여 있으면 «지금 내가 보내는 차례인가 받는 차례인가» 를
+                    #   화면이 안 알려 준다 — 이 단계에서 사람이 제일 헤맨다.
+                    "mp3s": media_in(bdir, AUDIO_EXTS),
+                    "vids": media_in(bdir, VIDEO_EXTS),
                     "titles": [str(by_no.get(n, {}).get("title", "")) for n in nos],
                     # 그 묶음 씬들이 아바타를 받았는지 — 진행 현황 표시용
                     "avatar": sum(1 for n in nos if by_no.get(n, {}).get("avatar")),
+                    "avatar_scenes": [n for n in nos if by_no.get(n, {}).get("avatar")],
                     "preview": sum(1 for n in nos if by_no.get(n, {}).get("preview")),
                 })
             return self._json({"bundles": rows,
@@ -651,6 +718,11 @@ class Handler(BaseHTTPRequestHandler):
             base = (BUILD / name).resolve()
             if BUILD.resolve() not in base.parents or not base.is_dir():
                 return self._send(404, b"not found", "text/plain")
+            # 화면은 뜻이 있는 이름(`preview/…`)으로 부르고 디스크는 번호를 쓴다.
+            # 첫 칸만 SUB_NO 로 바꿔 준다 — 옛 링크도 그대로 걸린다.
+            head, _, tail = rel.replace("\\", "/").partition("/")
+            if tail and head in SUB_NO:
+                rel = f"{SUB_NO[head]}/{tail}"
             target = (base / rel).resolve()
             if base not in target.parents and target.parent != base:
                 return self._send(403, b"no", "text/plain")
