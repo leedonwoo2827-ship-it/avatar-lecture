@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """P2b — 번역 자막이 없을 때 **대본에서 자막을 만든다.**
 
-    build/<task>/scenes.json (우즈베크어 나레이션)
-        → build/<task>/subs/sceneNN.<lang>.srt
+    강의/<작업>/scenes.json (우즈베크어 나레이션)
+        → 강의/<작업>/subs/sceneNN.<lang>.srt
 
 지금까지는 러시아어 자막이 이미 번역돼 들어왔다(`lecture01_uz.srt`). 새 강의는
 우즈베크어 대본만 오는 경우가 있고, 그때 이 단계가 자막을 만든다.
@@ -35,11 +35,10 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from scripts.common import ROOT, cue_max_chars, die, load_json, mmss, need, save_json
+from scripts.common import ROOT, cue_max_chars, die, load_json, mmss, need, save_json, scene_paths
 from scripts.cues import Cue, enforce_timing, group_words, to_srt
 from scripts.langs import LANGS, budget_chars, find as find_lang
 
-BUILD = ROOT / "build"
 
 
 def pseudo_words(text: str, dur: float) -> list[dict]:
@@ -72,9 +71,9 @@ def main() -> None:
     ap.add_argument("--budget", type=float, default=8.0, help="Claude 호출 상한(USD)")
     a = ap.parse_args()
 
-    task = BUILD / a.task
-    meta = load_json(need(task / "scenes.json", "p1_scenes.py 를 먼저 돌리세요"))
-    out_dir = task / "subs"
+    P = scene_paths(a.task)
+    meta = load_json(need(P.meta, "p1_scenes.py 를 먼저 돌리세요"))
+    out_dir = P.subs
     out_dir.mkdir(parents=True, exist_ok=True)
 
     rows = meta.get("scenes", [])
@@ -166,7 +165,7 @@ def main() -> None:
 
     meta["sub_langs"] = langs
     meta["sub_lang"] = dst
-    save_json(task / "scenes.json", meta)
+    save_json(P.meta, meta)
     print(f"\n완료 — {out_dir}")
     print("이제 4 자막에서 문구를 다듬고, 5 아바타·6 빌드로 이어 가세요.")
 

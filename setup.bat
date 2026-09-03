@@ -18,6 +18,7 @@ if not defined PYEXE (
   echo [ERROR] No working Python 3.10+ found.
   echo   Install from https://www.python.org/downloads/
   echo   and CHECK "Add python.exe to PATH" during setup.
+  pause
   exit /b 1
 )
 echo       %PYEXE%
@@ -29,6 +30,7 @@ if errorlevel 1 (
   echo [ERROR] ffmpeg not found on PATH.
   echo   winget install Gyan.FFmpeg
   echo   ...then open a NEW terminal so PATH refreshes.
+  pause
   exit /b 1
 )
 echo       ok
@@ -36,11 +38,11 @@ echo       ok
 echo [3/3] creating venv and installing packages
 if not exist ".venv\Scripts\python.exe" (
   "%PYEXE%" -m venv .venv
-  if errorlevel 1 exit /b 1
+  if errorlevel 1 (pause & exit /b 1)
 )
 ".venv\Scripts\python.exe" -m pip install --upgrade pip --quiet
 ".venv\Scripts\python.exe" -m pip install -r requirements.txt
-if errorlevel 1 exit /b 1
+if errorlevel 1 (pause & exit /b 1)
 
 echo.
 echo Done. Next:
@@ -49,6 +51,10 @@ echo   run.bat "C:\path\to\lecture.mp4" "C:\path\to\slides"
 echo.
 echo NOTE: the first s2 run downloads the speech model (about 1.5GB) once.
 echo       To make a test lecture first, see tools\sample\setup.bat
+echo.
+REM Keep the window open. Without this, a successful run closes instantly and
+REM you cannot tell success from failure - both just vanish.
+pause
 exit /b 0
 
 :try

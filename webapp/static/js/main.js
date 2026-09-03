@@ -20,23 +20,27 @@ const CUE_MAX = { ru: 42, uz: 46, en: 46, ko: 30 };
 /* ── 단계 ────────────────────────────────────────────────────────────────
  * page   : index.html 의 data-page
  * run    : 이 단계가 돌리는 파이프라인 조각 (없으면 실행 없는 화면)
- * costs  : perso 를 실제로 부르는 단계 — $ 가 붙는다
+ * costs  : 아바타 업체를 실제로 부르는 단계 — $ 가 붙는다
  * rule   : 이 앞에 「넘기는 것」 구분선을 긋는다
  */
 const STEPS = [
   { page: "p0",   name: "재료" },
   { page: "p1",   name: "씬",     run: "p1" },
-  { page: "p2",   name: "목소리", run: "p2", costs: true },
+  { page: "p2",   name: "목소리", run: "p2" },
   { page: "p2b",  name: "다국어 자막", run: "p2b" },
   { page: "p3",   name: "자막",   run: "p3" },
+  { page: "p3b",  name: "묶음",   run: "p3b" },
   { page: "p4",   name: "아바타", run: "p4", costs: true },
   { page: "p5",   name: "빌드",   run: "p5" },
   { page: "done", name: "결과",   rule: true },
 ];
-const TASK = "lecture01";
+// ★ 고른 강의. lectures.js 가 갈아 끼우고 localStorage 에 남긴다 —
+//   창을 다시 열어도 아까 고른 강의로 돌아온다. 120강이 쌓이면
+//   «어느 강의였지» 를 매번 다시 고르게 하면 안 된다.
+let TASK = localStorage.getItem("sc.task") || "";
 
 let STATE = { scenes: [], sceneDefaults: null, cfg: null };
-let PERSO = null, CONN = null;
+let HEYGEN = null, CONN = null;
 let cues = [];                 // 5 자막 화면의 현재 큐
 let LANGS = { langs: [], scripts: [] };
 let picked = [];               // 고른 자막 언어 (꼬리표) — 맨 앞이 기본 자막
@@ -65,7 +69,7 @@ const post = (path, body) => api(path, {
   method: "POST", headers: { "Content-Type": "application/json" },
   body: JSON.stringify(body),
 });
-const task = () => (STATE.scenes[0] && STATE.scenes[0].task) || TASK;
+const task = () => TASK || (STATE.scenes[0] && STATE.scenes[0].task) || "001";
 
 /* ── 좌측 순서 ──────────────────────────────────────────────
  * 상태 점은 scenes.json 이 채워진 정도로 정한다 — 파일이 사실이고 화면은
@@ -95,7 +99,7 @@ function renderSteps() {
     <button class="step ${cur === st.page ? "on" : ""}" data-page="${st.page}">
       <span class="step-no">${i + 1}</span>
       <span class="step-name">${st.name}</span>
-      ${st.costs ? '<span class="cost" title="perso 를 부르는 단계입니다">$</span>' : ""}
+      ${st.costs ? '<span class="cost" title="돈이 드는 단계입니다">$</span>' : ""}
       <span class="step-dot ${stepState(st.page)}"></span>
     </button>`).join("");
 }
@@ -153,8 +157,8 @@ function fillPaths() {
   if (rg) $("#sc-range").value = rg;
   $("#sc-range").onchange = () => localStorage.setItem("sc.range", $("#sc-range").value.trim());
 }
-const styleOf = () => ($('input[name="style"]:checked') || {}).value || "panel";
-const STYLE_NAME = { full: "전면샷", panel: "여백형" };
+const styleOf = () => ($('input[name="style"]:checked') || {}).value || "full";
+const STYLE_NAME = { full: "전면샷", panel: "여백형", both: "둘 다" };
 $$('input[name="style"]').forEach((r) => {
   r.onchange = () => { localStorage.setItem("sc.style", styleOf()); drawNotes(); };
 });
@@ -168,6 +172,9 @@ function payload(step) {
               voice_engine: $("#sc-voice").value,
               avatar_engine: $("#sc-avatar").value,
               avatar_h: $("#sc-avh").value.trim(),
+              avatar_src: (($("#sc-avatar-src") || {}).value || "").trim(),
+              bundle_max_sec: (($("#sc-bmax") || {}).value || "590").trim(),
+              bundle_pack: (($("#sc-bpack") || {}).value || "even"),
               subs_mode: $("#sc-submode").value,
               retranslate: $("#sc-retrans").checked,
               script_lang: $("#sc-scriptlang").value || "uz",
@@ -192,10 +199,13 @@ function drawNotes() {
 
   const v = $("#sc-voice").value;
   set("#p2-say", v === "source"
-    ? "시연본 mp4 에서 씬 구간의 소리를 그대로 떼어 옵니다 — <b>진짜 우즈베크어이고 크레딧은 0</b>입니다."
-    : v === "silent" ? "무음을 만듭니다. 배치만 볼 때 씁니다. <b>크레딧 0</b>."
-    : `<b style="color:var(--err)">perso TTS 를 부릅니다 — 크레딧을 씁니다.</b>`
-      + (PERSO && PERSO.ok ? "" : ` ${PERSO ? PERSO.why : ""}`));
+    ? "원본 mp4 에서 씬 구간의 소리를 그대로 떼어 옵니다 — <b>진짜 우즈베크어이고 0원</b>입니다. "
+      + "자막이 이 소리에 맞춰 작성된 것이라 <b>밀림이 0.06초</b>까지 떨어집니다."
+    : v === "pkg" ? "씬별 음성 파일을 <b>그대로</b> 씁니다 — 재인코딩이 한 번뿐이라 소리가 가장 깨끗합니다. <b>0원</b>."
+    : v === "silent" ? "무음을 만듭니다. 배치만 볼 때 씁니다. <b>0원</b>."
+    : `<b style="color:var(--err)">HeyGen TTS 를 부릅니다 — 돈을 씁니다.</b> `
+      + "우즈베크 보이스가 있는지 먼저 확인하세요."
+      + (HEYGEN && HEYGEN.ok ? "" : ` ${HEYGEN ? HEYGEN.why : ""}`));
   set("#p2-note", j ? `목소리 있는 씬 <b>${j.scenes.filter((s) => s.voice).length}/${n}</b>` : "");
 
   const withSubs = j ? j.scenes.filter((s) => s.cues > 0).length : 0;
@@ -203,22 +213,40 @@ function drawNotes() {
   set("#p2b-say", picked.length
     ? `<b>${names}</b> 로 옮깁니다. 맨 앞 «${(langByTag(picked[0]) || {}).name || picked[0]}» 가 `
       + "영상에 구워지고 나머지는 트랙으로 얹힙니다. "
-      + "<b>Claude 로그인을 쓰므로 perso 크레딧도 API 키도 안 듭니다.</b>"
+      + "<b>Claude 로그인을 쓰므로 HeyGen 과금도 API 키도 안 듭니다.</b>"
     : "언어를 하나 이상 고르세요.");
   set("#p2b-note", j
     ? (withSubs >= n && n
         ? `자막이 <b>${n}씬 모두</b> 있습니다 — 다시 만들려면 아래를 켜세요.`
         : `자막 있는 씬 <b>${withSubs}/${n}</b> — 대본에서 옮겨 채웁니다.`)
     : "");
+  const bp = (($("#sc-bpack") || {}).value || "even");
+  set("#p3b-say", bp === "even"
+    ? "묶음 <b>수는 최소로</b> 두고 길이를 고르게 나눕니다 — 3분짜리 자투리가 안 남습니다. "
+      + "묶음마다 폴더가 생기고 그 안의 <b>올릴음성.mp3</b> 을 업체에 드래그드랍합니다."
+    : "앞에서부터 상한까지 꽉 채웁니다 — 첫 묶음 경계가 승인본과 같아지지만 "
+      + "<b>마지막이 자투리로 남습니다</b>.");
+  set("#p3b-note", j && j.bundles
+    ? `묶음 <b>${j.bundles}개</b>` : "아직 안 만들었습니다.");
   set("#p3-note", j
     ? `자막은 <b>목소리 길이에 맞춰</b> 시각이 다시 매겨집니다. 문구를 고치면 저장만 하면 됩니다.`
     : "");
 
   const av = $("#sc-avatar").value;
+  const dropRow = $("#p4-drop-row");
+  if (dropRow) dropRow.hidden = av !== "drop";
   set("#p4-say", av === "stub"
-    ? "사람 모양 <b>임시 아바타</b>를 넣습니다 — 배경이 투명해서 진짜 아바타가 오면 같은 자리에 그대로 들어갑니다. <b>크레딧 0</b>."
-    : `<b style="color:var(--err)">perso 아바타를 부릅니다 — 크레딧을 씁니다.</b>`
-      + (PERSO && PERSO.ok ? "" : ` ${PERSO ? PERSO.why : ""}`));
+    ? "사람 모양 <b>임시 아바타</b>를 넣습니다 — 배경이 투명해서 진짜 아바타가 오면 같은 자리에 그대로 들어갑니다. <b>0원</b>."
+    : av === "drop"
+    ? "묶음 폴더의 <b>올릴음성.mp3</b> 을 HeyGen 웹에 드래그드랍해 렌더하고, 내려받은 영상을 "
+      + "<b>그 폴더에 되돌려 놓으면</b> 여기서 붙입니다. 영상은 <b>자르지 않습니다</b> — "
+      + "씬마다 «어디서부터 몇 초»만 적어 두고 다음 단계가 그 구간만 읽습니다. "
+      + "<b>웹 월정액이 API 보다 3~4배 쌉니다.</b>"
+    : `<b style="color:var(--err)">HeyGen API 를 부릅니다 — 초당 과금입니다.</b> `
+      + (HEYGEN && HEYGEN.rate_now
+          ? `${HEYGEN.engine} · 초당 $${HEYGEN.rate_now}`
+          : "")
+      + (HEYGEN && HEYGEN.ok ? "" : ` ${HEYGEN ? HEYGEN.why : ""}`));
   set("#p4-note", j ? `아바타 있는 씬 <b>${j.scenes.filter((s) => s.avatar).length}/${n}</b>` : "");
 
   const sm = $("#sc-submode").value;
@@ -399,6 +427,8 @@ function drawScenes(hostSel, forStep) {
     const ready = { p1: s.slide, p2: s.voice, p2b: s.cues > 0,
                     p3: s.voice && s.cues > 0, p4: s.avatar, p5: !!s.preview }[forStep];
     c.className = "sc-card" + (ready ? "" : " pending");
+    // 4칸 = 슬라이드 · 목소리 · 아바타 · 검수본. 씬마다 어디까지 됐는지
+    // 한눈에 보이게 — 목록을 훑으며 «이 씬은 아바타가 왔나» 를 세지 않아도 되게.
     const dots = [["슬라이드", s.slide], ["목소리", s.voice],
                   ["아바타", s.avatar], ["검수본", !!s.preview]]
       .map(([lab, on]) => `<i class="${on ? "on" : ""}" title="${lab}"></i>`).join("");
@@ -555,49 +585,62 @@ function drawJobs() {
 }
 $("#job-filter").oninput = drawJobs;
 
-/* ── perso 연결 ────────────────────────────────────────────
- * 키는 서버 파일(perso.local.json)에만 들어간다. 저장한 뒤 입력란을 비우는 것은
+/* ── HeyGen 연결 ────────────────────────────────────────────
+ * 키는 서버 파일(heygen.local.json)에만 들어간다. 저장한 뒤 입력란을 비우는 것은
  * 화면을 녹화해 공유하는 일이 잦기 때문이다 — 상태는 문장으로만 말한다.
  */
-async function loadPerso() {
-  try { PERSO = await api("/api/perso"); } catch { PERSO = null; }
-  if (PERSO && PERSO.voice_uz) $("#sc-voice-id").value = PERSO.voice_uz;
-  if (PERSO && PERSO.avatar_id) $("#sc-avatar-id").value = PERSO.avatar_id;
-  drawPersoWhy();
+async function loadHeygen() {
+  try { HEYGEN = await api("/api/heygen"); } catch { HEYGEN = null; }
+  if (HEYGEN && HEYGEN.voice_uz) $("#sc-voice-id").value = HEYGEN.voice_uz;
+  if (HEYGEN && HEYGEN.avatar_id) $("#sc-avatar-id").value = HEYGEN.avatar_id;
+  if (HEYGEN && HEYGEN.engine && $("#sc-hg-engine")) $("#sc-hg-engine").value = HEYGEN.engine;
+  if (HEYGEN && HEYGEN.motion_prompt && $("#sc-hg-motion"))
+    $("#sc-hg-motion").value = HEYGEN.motion_prompt;
+  drawHeygenWhy();
   drawNotes();
 }
 
-function drawPersoWhy() {
-  const el = $("#sc-perso-why");
-  const dot = $("#perso-dot");
-  dot.className = "conn-dot" + (!PERSO ? "" : PERSO.ok ? " ok" : PERSO.key ? " warn" : " bad");
-  $("#perso-t1").textContent = !PERSO ? "확인 중…" : PERSO.ok ? "perso 연결됨" : "perso 연결 안 됨";
-  $("#perso-t2").textContent = !PERSO ? "" : PERSO.ok ? (PERSO.voice_uz || "") : "키를 넣으세요";
+function drawHeygenWhy() {
+  const el = $("#sc-heygen-why");
+  const dot = $("#heygen-dot");
+  // ★ 좌하단 단추를 뺐으므로 없을 수 있다. 없으면 카드 문구만 고친다.
+  if (!dot) { if (el && HEYGEN) el.innerHTML = HEYGEN.why; return; }
+  // ★ 키가 없는 것은 **오류가 아니다** — 웹 드래그드랍으로 가면 필요 없다.
+  //   그래서 붉은 점(bad)을 쓰지 않는다. 키는 있는데 아바타를 안 고른 어중간한
+  //   상태만 노랗게 둔다 — 그건 실제로 p4 가 멈추는 상태다.
+  dot.className = "conn-dot" + (!HEYGEN ? "" : HEYGEN.ok ? " ok" : HEYGEN.key ? " warn" : "");
+  $("#heygen-t1").textContent = !HEYGEN ? "확인 중…"
+    : HEYGEN.ok ? "HeyGen API 연결됨" : HEYGEN.key ? "아바타를 안 골랐습니다" : "HeyGen API 안 씀";
+  $("#heygen-t2").textContent = !HEYGEN ? ""
+    : HEYGEN.ok ? (HEYGEN.avatar_id || "") : HEYGEN.key ? "look id 를 넣으세요" : "웹 드래그드랍으로 갑니다";
   if (!el) return;
-  if (!PERSO) { el.textContent = "perso 상태를 읽지 못했습니다."; return; }
-  const eps = PERSO.endpoints || {};
-  const bits = [PERSO.key ? "키 <b>있음</b>" : "키 <b>없음</b>",
-                "엔드포인트 " + (eps.tts && eps.avatar ? "<b>채워짐</b>" : "<b>비어 있음</b>")];
-  if (PERSO.voice_uz) bits.push("보이스 <b>" + PERSO.voice_uz + "</b>");
-  if (PERSO.avatar_id) bits.push("아바타 <b>" + PERSO.avatar_id + "</b>");
-  el.innerHTML = bits.join(" · ") + " — " + PERSO.why;
-  el.className = "sc-hint" + (PERSO.ok ? " ok" : "");
+  if (!HEYGEN) { el.textContent = "HeyGen 상태를 읽지 못했습니다."; return; }
+  const bits = [HEYGEN.key ? "키 <b>있음</b>" : "키 <b>없음</b>"];
+  bits.push(HEYGEN.avatar_id ? "아바타 <b>" + HEYGEN.avatar_id + "</b>" : "아바타 <b>안 고름</b>");
+  if (HEYGEN.engine) bits.push("엔진 <b>" + HEYGEN.engine + "</b>"
+                               + (HEYGEN.rate_now ? ` ($${HEYGEN.rate_now}/초)` : ""));
+  if (HEYGEN.voice_uz) bits.push("보이스 <b>" + HEYGEN.voice_uz + "</b>");
+  el.innerHTML = bits.join(" · ") + " — " + HEYGEN.why;
+  el.className = "sc-hint" + (HEYGEN.ok ? " ok" : "");
 }
-$("#perso-btn").onclick = () => { location.hash = "#/p0"; };
+if ($("#heygen-btn")) $("#heygen-btn").onclick = () => { location.hash = "#/p0"; };
 
 $("#btn-key").onclick = async () => {
   const key = $("#sc-key").value.trim();
   const voice = $("#sc-voice-id").value.trim();
   const av = $("#sc-avatar-id").value.trim();
-  if (!key && !voice && !av) return toast("넣을 값이 없습니다", true);
+  const eng = (($("#sc-hg-engine") || {}).value || "").trim();
+  const motion = (($("#sc-hg-motion") || {}).value || "").trim();
+  if (!key && !voice && !av && !eng && !motion) return toast("넣을 값이 없습니다", true);
   try {
-    const r = await post("/api/perso-key",
-                         { api_key: key, voice_uz: voice, avatar_id: av });
-    PERSO = r.status;
+    const r = await post("/api/heygen-key",
+                         { api_key: key, voice_uz: voice, avatar_id: av,
+                           engine: eng, motion_prompt: motion });
+    HEYGEN = r.status;
     $("#sc-key").value = "";
-    drawPersoWhy();
+    drawHeygenWhy();
     drawNotes();
-    toast("저장했습니다 — " + PERSO.why);
+    toast("저장했습니다 — " + HEYGEN.why);
   } catch (e) { toast(e.message, true); }
 };
 
@@ -701,11 +744,146 @@ setFlag("rail-off", localStorage.getItem("railOff") === "1");
 setFlag("drawer-off", localStorage.getItem("drawerOff") === "1");
 setFlag("dock-min", localStorage.getItem("dockMin") === "1");
 
+
+/* ══ 강의 고르기 · 묶음 보기 ═══════════════════════════════════════════════
+ *
+ * ★ **강의를 고르는 것이 첫 동작이다.** 120강까지 쌓이는데 안 고른 채로 아래
+ *   값을 만지면 남의 강의를 덮어쓴다. 그래서 목록이 1 재료 맨 위에 있다.
+ *
+ * ★ 처음에는 lectures.js 로 갈라 뒀다가 여기로 합쳤다 — main.js 가 ES 모듈이라
+ *   위의 $ · api · toast · run 이 모듈 밖에서 안 보인다(2026-09-02 실측).
+ *   window 에 얹어 내보내는 방법도 있지만, 그러면 어디서 무엇이 보이는지가
+ *   흐려진다. 같은 모듈 안에 두는 편이 읽기 쉽다.
+ */
+
+let LECS = [];
+let BUNDLES = { bundles: [], upload: "" };
+
+/* ── 강의 ───────────────────────────────────────────────────── */
+
+async function loadLectures() {
+  try {
+    const r = await api("/api/lectures");
+    LECS = r.lectures || [];
+    const el = $("#lec-hint");
+    if (!LECS.length) {
+      el.innerHTML = `<b>강의가 없습니다.</b> <code>${r.dir}</code> 안에 폴더를 만들고 `
+        + `그 안에 <code>00</code> 을 만들어 재료를 넣으세요 — `
+        + `mp4 · 번역 자막 srt · 대본 txt · slides 폴더.`;
+    } else {
+      el.innerHTML = `<code>${r.dir}</code> 를 읽었습니다. 폴더 하나가 강의 하나입니다 — `
+        + `<b>고르면</b> 아래 재료 자리가 그 강의로 채워집니다.`;
+    }
+    drawLectures();
+  } catch (e) {
+    $("#lec-hint").textContent = "강의 목록을 읽지 못했습니다: " + e.message;
+  }
+}
+
+function drawLectures() {
+  const host = $("#lec-list");
+  if (!host) return;
+  $("#lec-count").textContent = LECS.length ? `${LECS.length}개` : "";
+  host.innerHTML = "";
+  const now = task();
+  for (const L of LECS) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "lec" + (L.task === now ? " on" : "");
+    // 진행 현황 — 씬·목소리·자막·묶음·아바타·완성 여섯 칸
+    const done = [
+      L.scenes > 0, L.voice > 0, L.subs_done > 0,
+      L.bundles > 0, L.avatar > 0, L.preview > 0,
+    ];
+    const dots = done.map((x) => `<i class="${x ? "on" : ""}"></i>`).join("");
+    const sub = L.scenes
+      ? `씬 ${L.scenes} · 목소리 ${L.voice} · 묶음 ${L.bundles} · 아바타 ${L.avatar}`
+      : (L.ready ? `재료 준비됨 · 슬라이드 ${L.slide_count}장` : `<span class="lec-warn">재료가 모자랍니다</span>`);
+    b.innerHTML = `<span class="lec-name">${L.task}</span>`
+      + `<span class="lec-sub">${sub}</span>`
+      + `<span class="lec-dots" title="씬·목소리·자막·묶음·아바타·완성">${dots}</span>`;
+    b.onclick = () => pickLecture(L);
+    host.appendChild(b);
+  }
+}
+
+/* 강의를 고른다 — 작업 이름과 재료 네 자리를 그 강의로 갈아 끼운다.
+ * ★ localStorage 에 남긴다. 창을 다시 열어도 아까 고른 강의로 돌아온다. */
+function pickLecture(L) {
+  TASK = L.task;
+  localStorage.setItem("sc.task", TASK);
+  for (const k of ["script", "subs", "slides", "source"]) {
+    const el = $("#sc-" + k);
+    if (!el) continue;
+    el.value = L[k] || "";
+    localStorage.setItem("sc." + k, el.value);
+  }
+  drawLectures();
+  toast(`${L.task} 을 골랐습니다`);
+  refresh().then(() => { loadBundles(); }).catch(() => {});
+}
+
+/* ── 묶음 ───────────────────────────────────────────────────── */
+
+async function loadBundles() {
+  try {
+    BUNDLES = await api(`/api/bundles?task=${encodeURIComponent(task())}`);
+  } catch {
+    BUNDLES = { bundles: [], upload: "" };
+  }
+  drawBundles();
+}
+
+function drawBundles() {
+  const host = $("#bundle-list");
+  if (!host) return;
+  const rows = BUNDLES.bundles || [];
+  host.innerHTML = "";
+  if (!rows.length) {
+    host.innerHTML = `<p class="sc-hint">아직 묶음이 없습니다 — 아래 `
+      + `<b>묶음 만들기</b>를 누르세요.</p>`;
+    return;
+  }
+  for (const b of rows) {
+    const sec = Number(b.sec) || 0;
+    const m = Math.floor(sec / 60), s = Math.round(sec % 60);
+    const n = (b.scenes || []).length;
+    const got = Number(b.avatar) || 0;
+    const state = got >= n
+      ? `<b style="color:var(--ok)">아바타 받음</b>`
+      : `아바타 <b>안 받음</b> — 올릴음성.mp3 을 업체에 넣으세요`;
+    const d = document.createElement("div");
+    d.className = "bundle";
+    d.innerHTML =
+      `<div class="bundle-h"><b>${b.dir || ("bundle" + String(b.no).padStart(2, "0"))}</b>`
+      + `<span class="bundle-sec">${m}:${String(s).padStart(2, "0")}</span></div>`
+      + `<div class="bundle-sub">씬 ${b.scenes[0]}~${b.scenes[b.scenes.length - 1]} `
+      + `(${n}개) · ${state}</div>`
+      + `<div class="bundle-t">${(b.titles || []).slice(0, 3).map((t) =>
+            `<span>${(t || "").slice(0, 30)}</span>`).join("")}</div>`;
+    host.appendChild(d);
+  }
+  const el = $("#bundle-where");
+  if (el && BUNDLES.upload) {
+    el.innerHTML = `묶음 폴더는 <code>${BUNDLES.upload}</code> 에 있습니다. `
+      + `폴더마다 <b>올릴음성.mp3</b> 을 꺼내 업체에 드래그드랍하고, `
+      + `렌더된 영상을 <b>그 폴더에 되돌려</b> 놓으세요.`;
+  }
+}
+
+/* ── 배선 ───────────────────────────────────────────────────── */
+
+if ($("#btn-p3b")) $("#btn-p3b").onclick = () => run("p3b", "#btn-p3b");
+if ($("#sc-bpack")) $("#sc-bpack").onchange = drawNotes;
+
+loadLectures();
+loadBundles();
+
 /* ── 시작 ──────────────────────────────────────────────────── */
 window.addEventListener("hashchange", route);
 hydrateIcons(document);
 renderSteps();
 refresh().then(route).catch((e) => toast(e.message, true));
 loadConn();
-loadPerso();
+loadHeygen();
 loadLangs();

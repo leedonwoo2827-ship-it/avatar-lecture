@@ -172,6 +172,51 @@ def srt_path(P: SimpleNamespace, lang: str) -> Path:
     return P.subs / f"subs.{lang}.srt"
 
 
+# ── 강의 하나의 자리 (p1~p5) ─────────────────────────────────────────────────
+# 강의 하나가 **폴더 하나**다. 재료와 산출물이 같이 있어 강의를 통째로 옮기거나
+# 지울 수 있다 — 120강이 쌓이면 그게 유일하게 관리되는 방식이다.
+#
+# 폴더는 **단계 순서대로 숫자로만** 부른다(s1~s7 과 같은 규칙). 설명은 코드가
+# 갖고 있으면 되지 폴더 이름까지 길게 늘어놓을 필요는 없다.
+LECTURES = ROOT / "강의"
+
+
+def scene_paths(task: str) -> SimpleNamespace:
+    r"""`강의\<task>\` 안의 모든 자리.
+
+        00  재료      mp4 · srt · txt · slides\      <- 사람이 넣는다
+        01  씬        slides\ · subs\                 p1_scenes
+        02  목소리    sceneNN.wav                     p2_voice
+        03  자막      sceneNN.<lang>.srt (다국어 전부) p3_resync
+        05  묶음      bundleNN\                       p3b_voicepack  <- 업체와 주고받는다
+        07  아바타    묶음 영상 (자르지 않는다)        p4_avatar
+        09  완성      sceneNN.mp4 · all.mp4           p5_compose     <- 넘긴다
+
+    ★ **04 · 06 · 08 을 비워 둔다.** 중간에 단계가 하나 끼면(전사 정렬, 검수 번인,
+      업체별 후처리 같은 것) 뒤 폴더를 전부 바꿔 이름을 밀지 않아도 되게 하려는
+      것이다. 번호는 순서만 말하면 되고 연속일 필요는 없다.
+
+    ★ 01 의 subs 는 **대본 시각**, 03 은 **실제 음성 시각**이다. 둘을 한 폴더에
+      두면 어느 쪽을 고쳐야 하는지 헷갈린다 — p3 가 01 을 읽어 03 을 쓴다.
+    """
+    ws = LECTURES / task
+    return SimpleNamespace(
+        ws=ws,
+        meta=ws / "scenes.json",
+        src=ws / "00",
+        scene=ws / "01",
+        slides=ws / "01" / "slides",
+        subs=ws / "01" / "subs",
+        voice=ws / "02",
+        aligned=ws / "03",
+        upload=ws / "05",
+        avatar=ws / "07",
+        dist=ws / "09",
+        preview=ws / "09",
+        ass=ws / "09" / "_ass",
+    )
+
+
 # ── 외부 도구 ────────────────────────────────────────────────────────────────
 
 def ffmpeg() -> str:

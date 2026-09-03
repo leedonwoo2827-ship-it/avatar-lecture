@@ -7,7 +7,7 @@ s1~s7 이 **완성된 mp4를 헐어** perso에 올릴 재료로 만드는 길이
 그 둘만 perso가 채운다.
 
     대본(uzbek_script.txt) + 번역 자막(*.srt) + 슬라이드(NNN.png)
-        → build/<task>/scenes.json
+        → 강의/<작업>/scenes.json
                        subs/scene01.<lang>.srt   0초부터 다시 매긴 타임코드
                        slides/001.png …          그 씬이 쓸 슬라이드
 
@@ -33,10 +33,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from scripts.common import ROOT, cue_max_chars, die, local_config, mmss, save_json
+from scripts.common import ROOT, cue_max_chars, die, local_config, mmss, save_json, scene_paths
 from scripts.cues import parse_srt, to_srt
 
-BUILD = ROOT / "build"
 
 # `01. [00:00:00 ~ 00:01:11] (1분 11초)  Добро пожаловать: цели занятия`
 # 괄호 안의 길이는 사람 읽으라고 적힌 것이라 안 쓴다 — 시각 두 개가 사실이다.
@@ -134,14 +133,14 @@ def main() -> None:
         if not cues:
             die(f"{subs_p.name} 에서 자막 큐를 못 읽었습니다")
 
-    task = BUILD / a.task
-    (task / "subs").mkdir(parents=True, exist_ok=True)
-    (task / "slides").mkdir(parents=True, exist_ok=True)
+    P = scene_paths(a.task)
+    P.subs.mkdir(parents=True, exist_ok=True)
+    P.slides.mkdir(parents=True, exist_ok=True)
 
     maxc = cue_max_chars(a.sub_lang)
     rows: list[dict] = []
     total = 0.0
-    print(f"대본 {len(scenes)}씬 중 {len(picked)}씬 — {task}")
+    print(f"대본 {len(scenes)}씬 중 {len(picked)}씬 — {P.ws}")
     for s in picked:
         no, st, en = s["no"], float(s["start"]), float(s["end"])
         dur = en - st
@@ -151,7 +150,7 @@ def main() -> None:
         mine = [c for c in cues if st <= (c.start + c.end) / 2 < en]
         srt_name = f"scene{no:02d}.{a.sub_lang}.srt"
         if cues:
-            (task / "subs" / srt_name).write_text(to_srt(mine, offset=st), encoding="utf-8")
+            (P.subs / srt_name).write_text(to_srt(mine, offset=st), encoding="utf-8")
 
         # 슬라이드는 씬 번호 = 파일 앞 숫자. 확장자·뒷말은 자유다
         # (이미지프롬프트 json 의 file_naming 규칙 그대로).
@@ -166,7 +165,7 @@ def main() -> None:
         slide_name = ""
         if hit:
             slide_name = f"{no:03d}{hit.suffix.lower()}"
-            shutil.copy2(hit, task / "slides" / slide_name)
+            shutil.copy2(hit, P.slides / slide_name)
 
         over = [c.text for c in mine if len(c.text) > maxc]
         chars = sum(len(c.text) for c in mine)
@@ -184,7 +183,7 @@ def main() -> None:
         print(f"  {no:02d}  {mmss(dur):>7}  자막 {len(mine):3d}개  "
               f"슬라이드 {slide_name or '—':<9}  {s['title'][:34]}{flag}{warn}")
 
-    save_json(task / "scenes.json", {
+    save_json(P.meta, {
         "task": a.task, "sub_lang": a.sub_lang,
         "script": str(script_p), "subs": str(subs_p or ""), "slides": str(slides_p),
         "total_sec": round(total, 3), "scenes": rows,
@@ -196,7 +195,7 @@ def main() -> None:
               "(scripts/p2b_translate.py).")
     if miss:
         print(f"슬라이드를 못 찾은 씬: {miss} — {slides_p} 를 확인하세요")
-    print(f"완료 — {task / 'scenes.json'}")
+    print(f"완료 — {P.meta}")
 
 
 if __name__ == "__main__":

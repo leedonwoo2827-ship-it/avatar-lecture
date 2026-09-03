@@ -19,13 +19,13 @@
   <!-- ══ 레일 — 순서 ══════════════════════════════════════════════════════
        평평한 메뉴가 아니라 **번호 순서**다. 이 앱은 대본에서 완료본까지 한 길로
        가는 도구라, 무엇을 먼저 하는지가 화면에 그대로 보여야 한다.
-       돈이 드는 단계(perso 를 실제로 부르는 목소리·아바타)에만 $ 를 붙인다. -->
+       돈이 드는 단계(아바타 업체를 실제로 부르는 목소리·아바타)에만 $ 를 붙인다. -->
   <nav class="rail" id="rail" aria-label="순서">
     <div class="side-brand">
       <!-- ★ 노란 사각형이 이 앱의 얼굴이다. 창을 여러 개 띄워도 눈으로 갈린다.
            글자 대신 **사람 실루엣**을 넣는다 — 이 도구가 만드는 것이 발표자라
            그림 하나로 통하고, 접었을 때 이것만 남아도 뜻이 산다.
-           이름에 업체명을 안 넣는다 — perso 를 다른 아바타 서비스로 바꿔도
+           이름에 업체명을 안 넣는다 — 아바타 업체를 바꿔도(perso → HeyGen)
            이름이 거짓말이 되지 않아야 한다. -->
       <span class="brand-mark" title="Avatar Lecture"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="8" r="4" fill="currentColor"/><path d="M3.5 22c0-4.7 3.8-8.5 8.5-8.5s8.5 3.8 8.5 8.5z" fill="currentColor"/></svg></span>
       <span class="brand-name">Avatar Lecture</span>
@@ -43,16 +43,10 @@
       <div id="steps"></div>
     </div>
 
-    <!-- ══ 레일 맨 아래 — 연결 상태 두 줄 ═══════════════════════════════════
-         perso 는 크레딧이 드는 쪽, Claude 는 구독으로 덮이는 쪽이다. 서로 다른
-         자격증명이라 한 줄로 합치지 않는다. 키를 넣는 자리는 1단계 재료에 있다. -->
-    <button class="conn" id="perso-btn" type="button" title="perso 연결 상태">
-      <span class="conn-dot" id="perso-dot"></span>
-      <span class="conn-text">
-        <span class="conn-t1" id="perso-t1">확인 중…</span>
-        <span class="conn-t2" id="perso-t2"></span>
-      </span>
-    </button>
+    <!-- ══ 레일 맨 아래 — Claude 연결 ═══════════════════════════════════════
+         ★ HeyGen 단추는 뺐다. 웹 드래그드랍으로 가는 길에는 API 를 안 쓰므로
+           늘 «안 씀»만 떠서 자리만 차지했다. 키를 넣는 자리는 1단계 재료에
+           접혀 있다 — 여러 편을 자동으로 돌릴 때만 쓴다. -->
     <button class="conn" id="conn-btn" type="button" title="Claude 연결 상태">
       <span class="conn-dot" id="conn-dot"></span>
       <span class="conn-text">
@@ -72,37 +66,26 @@
       <header class="page-head">
         <h1>재료</h1>
         <p class="page-sub">대본과 슬라이드로 <b>우즈베크어 음성 · 러시아어 자막</b> 영상을 세웁니다.
-          perso 를 붙이기 전까지는 <b>크레딧을 쓰지 않습니다</b>.</p>
+          아바타를 갈아 끼우기 전까지는 <b>한 푼도 쓰지 않습니다</b>.</p>
       </header>
 
-      <!-- perso 연결 — 키는 perso.local.json 에만 들어가고 화면으로 되돌아오지 않는다 -->
+      <!-- ══ 강의 고르기 ═════════════════════════════════════════════════════
+           **맨 위에 있어야 한다.** 120강까지 쌓이는데 어느 강의를 만드는지 안
+           고른 채로 아래 값을 만지면 남의 강의를 덮어쓴다. 고르는 것이 첫 동작이다.
+           목록은 `강의\` 안의 폴더를 그대로 읽는다 — 폴더가 곧 강의다. -->
       <div class="card wide">
-        <div class="card-t">perso 연결</div>
-        <p class="sc-hint" id="sc-perso-why">확인 중…</p>
-        <div class="opt-row">
-          <label>API 키 <em>발급받은 키를 붙여 넣으세요</em>
-            <input type="password" id="sc-key" spellcheck="false"
-                   autocomplete="off" placeholder="키를 넣고 저장" /></label>
-          <label>우즈베크어 보이스 <em>Voices 에서 고른 이름·ID</em>
-            <input type="text" id="sc-voice-id" spellcheck="false"
-                   placeholder="예: uz-female-01" /></label>
-          <label>아바타 <em>단정한 정장 차림으로 고르세요</em>
-            <input type="text" id="sc-avatar-id" spellcheck="false"
-                   placeholder="예: presenter-suit-01" /></label>
-          <label>&nbsp;<em>&nbsp;</em>
-            <button class="btn-plain" id="btn-key" type="button">
-              <span data-icon="check" data-icon-size="14"></span><span>저장</span></button>
-          </label>
-        </div>
+        <div class="card-t">강의 <span id="lec-count"></span></div>
+        <p class="sc-hint" id="lec-hint">「강의」 폴더를 읽는 중…</p>
+        <div id="lec-list" class="lec-list"></div>
       </div>
 
       <!-- 스타일 — 둘뿐이라 라디오로 둔다. 렌더 없이 고르는 값이다 -->
       <div class="card wide">
         <div class="card-t">스타일</div>
-        <p class="sc-hint">화면을 어떻게 짤지 <b>지금 고릅니다</b>. 6 빌드가 이 값으로 굽습니다.</p>
+        <p class="sc-hint">고른 강의를 <b>어떻게 짤지</b> 정합니다. 7 빌드가 이 값으로 굽습니다.</p>
         <div class="style-pick" id="style-pick">
           <label class="style-op">
-            <input type="radio" name="style" value="full" />
+            <input type="radio" name="style" value="full" checked />
             <span class="style-box">
               <span class="style-fig" data-fig="full" aria-hidden="true">
                 <i class="fig-slide"></i><i class="fig-av"></i><i class="fig-band"></i>
@@ -113,14 +96,26 @@
             </span>
           </label>
           <label class="style-op">
-            <input type="radio" name="style" value="panel" checked />
+            <input type="radio" name="style" value="both" />
+            <span class="style-box">
+              <span class="style-fig" data-fig="full" aria-hidden="true">
+                <i class="fig-slide"></i><i class="fig-av"></i><i class="fig-band"></i>
+              </span>
+              <b>둘 다</b>
+              <em>전면샷과 여백형을 한 번에 굽습니다. 골라 쓰고 아닌 쪽은 지우면
+                됩니다. 아바타를 다시 부르지 않으니 추가 비용이 없습니다.</em>
+            </span>
+          </label>
+          <label class="style-op">
+            <input type="radio" name="style" value="panel" />
             <span class="style-box">
               <span class="style-fig" data-fig="panel" aria-hidden="true">
                 <i class="fig-slide"></i><i class="fig-col"></i><i class="fig-av"></i><i class="fig-band"></i>
               </span>
               <b>여백형</b>
-              <em>슬라이드는 왼쪽 칸을 쓰고 발표자는 오른쪽 자기 칸에 섭니다.
-                슬라이드 아래가 자막 선에 붙습니다. 아무것도 가리지 않습니다.</em>
+              <em>발표자 자리를 <b>따로 비워</b> 둡니다. 슬라이드는 왼쪽 칸을 쓰고
+                아래가 자막 선에 붙습니다. 아무것도 가리지 않습니다 —
+                승인본 <code>all-B.mp4</code> 와 같은 배치입니다.</em>
             </span>
           </label>
         </div>
@@ -128,7 +123,7 @@
 
       <div class="card wide">
         <div class="card-t">재료 자리</div>
-        <p class="sc-hint">`_context*` 폴더를 훑어 찍어 둡니다. 고치면 그 값이 이깁니다.</p>
+        <p class="sc-hint">「강의」 안의 폴더를 훑어 찍어 둡니다. 고치면 그 값이 이깁니다.</p>
         <div class="opt-row col">
           <label>대본 <em>씬 번호와 시각이 적힌 txt</em>
             <input type="text" id="sc-script" spellcheck="false" /></label>
@@ -136,21 +131,69 @@
             <input type="text" id="sc-subs" spellcheck="false" /></label>
           <label>슬라이드 폴더 <em>NNN.png</em>
             <input type="text" id="sc-slides" spellcheck="false" /></label>
-          <label>목소리 원본 <em>시연본 mp4 — 여기서 소리를 떼어 옵니다</em>
+          <label>목소리 원본 <em>원본 mp4 — 씬 경계로 소리를 떼어 옵니다</em>
             <input type="text" id="sc-source" spellcheck="false" /></label>
         </div>
         <div class="opt-row">
           <label>씬 <em>1-8 · 3 · 1,4,7</em>
-            <input type="text" id="sc-range" value="1-8" spellcheck="false" /></label>
+            <input type="text" id="sc-range" value="1-32" spellcheck="false" /></label>
         </div>
       </div>
+
+      <!-- ══ HeyGen 연결 ═════════════════════════════════════════════════════
+           키는 heygen.local.json 에만 들어가고 화면으로 되돌아오지 않는다.
+           ★ **이 카드는 안 채워도 끝까지 돌아간다.** 그래서 접어 두고 맨 아래에 둔다 —
+             맨 위에 두면 «키를 먼저 넣어야 하나» 로 읽힌다.
+
+             지금 쓰는 길은 웹 드래그드랍이다: 05 의 묶음 폴더에서 mp3 를 꺼내
+             HeyGen 웹에 올리고, 렌더된 영상을 그 폴더에 되돌려 놓은 뒤 «6 아바타»
+             에서 붙인다. 그 길에는 API 키가 필요 없다.
+
+             여기에 키를 넣는 것은 **여러 편을 자동으로 돌릴 때**다. 다만 API 는
+             초당 과금이라 월정액보다 단가가 3~4배다. -->
+      <details class="card wide">
+        <summary class="card-t" style="cursor:pointer">
+          HeyGen API 키 <em>— 안 채워도 됩니다. 웹 드래그드랍으로 갑니다</em>
+        </summary>
+        <p class="sc-hint" id="sc-heygen-why">확인 중…</p>
+        <div class="opt-row">
+          <label>API 키 <em>Settings → API 에서 발급</em>
+            <input type="password" id="sc-key" spellcheck="false"
+                   autocomplete="off" placeholder="키를 넣고 저장" /></label>
+          <label>아바타 <em>look id — 그룹 id 가 아닙니다</em>
+            <input type="text" id="sc-avatar-id" spellcheck="false"
+                   placeholder="예: Daisy_sitting_business_front" /></label>
+          <label>엔진 <em>제스처가 자연스러운 쪽이 비쌉니다</em>
+            <select id="sc-hg-engine">
+              <option value="avatar_v">Avatar V — 제스처 최상 · $0.067/초</option>
+              <option value="avatar_iv">Avatar IV — $0.050/초</option>
+              <option value="avatar_iii">Avatar III — 가장 쌈 · $0.017/초</option>
+            </select></label>
+          <label>우즈베크어 보이스 <em>녹음본을 쓰면 비워 둡니다</em>
+            <input type="text" id="sc-voice-id" spellcheck="false"
+                   placeholder="(비워 두면 녹음본 립싱크)" /></label>
+        </div>
+        <div class="opt-row">
+          <label class="grow">제스처 지시문
+            <em>[신체부위]+[동작]+[감정] 한 가지만. 커스텀 모션은 10초까지 걸립니다</em>
+            <input type="text" id="sc-hg-motion" spellcheck="false"
+                   placeholder="예: Avatar nods confidently, hands calm and open" /></label>
+          <label>&nbsp;<em>&nbsp;</em>
+            <button class="btn-plain" id="btn-key" type="button">
+              <span data-icon="check" data-icon-size="14"></span><span>저장</span></button>
+          </label>
+        </div>
+      </details>
+
 
       <div class="run-bar">
         <span class="run-note" id="p0-note">자리를 확인하고 <b>전부 만들기</b>를 누르거나, 2 씬부터 하나씩 도세요.</span>
         <button class="btn-ink" id="btn-p1" type="button">
-          <span data-icon="arrowRight" data-icon-size="15"></span><span>씬 떼기 →</span>
+          <span data-icon="play" data-icon-size="15"></span><span>실행</span>
         </button>
       </div>
+      <p class="sc-legend">씬 칸의 눈금 넷은 <b>슬라이드 · 목소리 · 아바타 · 검수본</b> 입니다 — 노란 칸이 끝난 것입니다.</p>
+      <div id="p1-out"></div>
     </section>
 
     <!-- ── 2 씬 ── -->
@@ -162,10 +205,10 @@
       <div class="run-bar">
         <span class="run-note" id="p1-note"></span>
         <button class="btn-ink" id="btn-p1b" type="button">
-          <span data-icon="refresh" data-icon-size="15"></span><span>다시 떼기</span>
+          <span data-icon="play" data-icon-size="15"></span><span>실행</span>
         </button>
       </div>
-      <div id="p1-out"></div>
+
     </section>
 
     <!-- ── 3 목소리 ── -->
@@ -177,35 +220,37 @@
       <div class="card">
         <div class="card-t">엔진</div>
         <div class="opt-row">
-          <label>무엇으로 만드나 <em>perso 만 크레딧을 씁니다</em>
+          <label>무엇으로 만드나 <em>전부 0원입니다</em>
             <select id="sc-voice">
-              <option value="source">시연본에서 떼어 오기 (크레딧 0)</option>
-              <option value="silent">무음 — 배치만 볼 때 (크레딧 0)</option>
-              <option value="perso">perso TTS — 키 발급 후</option>
+              <option value="source">원본에서 떼기</option>
+              <option value="pkg">씬별 음성 파일</option>
+              <option value="silent">무음</option>
             </select>
           </label>
         </div>
         <p class="opt-say" id="p2-say"></p>
+        <div class="run-in">
+          <span class="run-note" id="p2-note"></span>
+          <button class="btn-ink" id="btn-p2" type="button">
+            <span data-icon="play" data-icon-size="15"></span><span>실행</span>
+          </button>
+        </div>
       </div>
-      <div class="run-bar">
-        <span class="run-note" id="p2-note"></span>
-        <button class="btn-ink" id="btn-p2" type="button">
-          <span data-icon="refresh" data-icon-size="15"></span><span>목소리 만들기</span>
-        </button>
-      </div>
+      <p class="sc-legend">씬 칸의 눈금 넷은 <b>슬라이드 · 목소리 · 아바타 · 검수본</b> 입니다 — 노란 칸이 끝난 것입니다.</p>
       <div id="p2-out"></div>
+
     </section>
 
     <!-- ── 4 다국어 자막 ──────────────────────────────────────────────────
          번역 자막 srt 가 같이 오면 이 단계는 그냥 지나간다. 우즈베크어 대본만
          온 강의에서만 실제로 옮긴다. Claude Code 로그인(OAuth)을 쓰므로
-         **perso 크레딧도 API 키도 안 쓴다** — 구독으로 덮인다. -->
+         **HeyGen 과금도 API 키도 안 쓴다** — 구독으로 덮인다. -->
     <section class="page" data-page="p2b" hidden>
       <header class="page-head">
         <h1>다국어 자막</h1>
         <p class="page-sub">번역 자막이 같이 오면 <b>그대로 씁니다</b>.
           대본만 있으면 여기서 <b>대본을 옮겨 자막을 만듭니다</b> —
-          Claude 로그인을 쓰므로 <b>perso 크레딧도 API 키도 안 듭니다</b>.</p>
+          Claude 로그인을 쓰므로 <b>HeyGen 과금도 API 키도 안 듭니다</b>.</p>
       </header>
       <div class="card wide">
         <div class="card-t">언어 고르기</div>
@@ -234,10 +279,12 @@
       <div class="run-bar">
         <span class="run-note" id="p2b-note"></span>
         <button class="btn-ink" id="btn-p2b" type="button">
-          <span data-icon="file" data-icon-size="15"></span><span>자막 만들기</span>
+          <span data-icon="play" data-icon-size="15"></span><span>실행</span>
         </button>
       </div>
+      <p class="sc-legend">씬 칸의 눈금 넷은 <b>슬라이드 · 목소리 · 아바타 · 검수본</b> 입니다 — 노란 칸이 끝난 것입니다.</p>
       <div id="p2b-out"></div>
+
     </section>
 
     <!-- ── 5 자막 ── -->
@@ -250,7 +297,7 @@
       <div class="run-bar">
         <span class="run-note" id="p3-note"></span>
         <button class="btn-ink" id="btn-p3" type="button">
-          <span data-icon="refresh" data-icon-size="15"></span><span>길이 다시 맞추기</span>
+          <span data-icon="play" data-icon-size="15"></span><span>실행</span>
         </button>
       </div>
       <div class="sub-bar">
@@ -263,7 +310,47 @@
     </section>
 
     <!-- ── 5 아바타 ── -->
-    <section class="page" data-page="p4" hidden>
+        <!-- ── 묶음 — 아바타 업체에 넣을 음성 덩어리 ────────────────────────────
+         씬마다 따로 렌더하면 아바타가 매 씬 시작마다 같은 기본 포즈로 리셋되어
+         이어붙인 자리가 튄다. 한 덩어리로 렌더하면 자세와 제스처가 이어진다.
+         그래도 나누는 이유는 업체의 오디오 상한이 10분이기 때문이다. -->
+    <section class="page" data-page="p3b" hidden>
+      <header class="page-head">
+        <h1>음성 묶음</h1>
+        <p class="page-sub">업체에 넣을 <b>음성 덩어리</b>를 만듭니다. 10분 상한 안에서
+          <b>씬 경계로만</b> 묶어 45분 강의가 5조각이 됩니다.</p>
+      </header>
+      <div class="card wide">
+        <div class="card-t">묶음 <span id="bundle-n"></span></div>
+        <p class="sc-hint" id="bundle-where">아직 안 만들었습니다.</p>
+        <div id="bundle-list" class="bundle-list"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-t">설정</div>
+        <div class="opt-row">
+          <label>묶음 하나의 상한 <em>초. HeyGen 상한 600초에 10초 마진</em>
+            <input type="text" id="sc-bmax" value="590" spellcheck="false" /></label>
+          <label>나누는 방식 <em>고르게 = 자투리가 안 남습니다</em>
+            <select id="sc-bpack">
+              <option value="even">고르게</option>
+              <option value="fill">꽉 채움</option>
+            </select></label>
+        </div>
+        <p class="opt-say" id="p3b-say"></p>
+        <div class="run-in">
+          <span class="run-note" id="p3b-note"></span>
+          <button class="btn-ink" id="btn-p3b" type="button">
+            <span data-icon="play" data-icon-size="15"></span><span>실행</span>
+          </button>
+        </div>
+      </div>
+
+      <p class="sc-legend">씬 칸의 눈금 넷은 <b>슬라이드 · 목소리 · 아바타 · 검수본</b> 입니다 — 노란 칸이 끝난 것입니다.</p>
+      <div id="p4-out"></div>
+    </section>
+
+<section class="page" data-page="p4" hidden>
       <header class="page-head">
         <h1>아바타 <span class="cost-tag">$</span></h1>
         <p class="page-sub">발표자를 만들어 넣습니다. 다음 단계가 이것을 <b>슬라이드 위에 마지막으로 얹습니다</b>.</p>
@@ -271,24 +358,33 @@
       <div class="card">
         <div class="card-t">설정</div>
         <div class="opt-row">
-          <label>무엇으로 만드나 <em>perso 만 크레딧을 씁니다</em>
+          <label>무엇으로 만드나 <em>웹이 API 보다 3~4배 쌉니다</em>
             <select id="sc-avatar">
-              <option value="stub">임시 아바타 (크레딧 0)</option>
-              <option value="perso">perso 아바타 — 키 발급 후</option>
+              <option value="stub">임시 아바타</option>
+              <option value="drop">내려받은 영상 붙이기</option>
+              <option value="heygen">HeyGen API (유료)</option>
             </select>
           </label>
-          <label>크기 <em>화면 높이 대비 (0.80 = 거의 전신)</em>
-            <input type="text" id="sc-avh" value="0.80" spellcheck="false" /></label>
+          <label>크기 <em>화면 높이 대비. 전신 아바타는 <b>0.85</b>, 상반신은 <b>0.55~0.60</b></em>
+            <input type="text" id="sc-avh" value="0.85" spellcheck="false" /></label>
+        </div>
+        <!-- ★ drop 일 때만 쓴다. 아바타를 **자르지 않고** 묶음 영상 하나를 두고
+             씬마다 «어디서부터 몇 초»만 적는다 — 재인코딩 0회, 화질 손실 0. -->
+        <div class="opt-row" id="p4-drop-row" hidden>
+          <label class="grow">내려받은 영상 폴더
+            <em>묶음마다 파일 하나. 이름에 bundle01 이나 01 이 들어 있으면 알아서 짝짓습니다</em>
+            <input type="text" id="sc-avatar-src" spellcheck="false"
+                   placeholder="예: 다운로드 폴더 경로를 붙여 넣으세요" /></label>
         </div>
         <p class="opt-say" id="p4-say"></p>
+        <div class="run-in">
+          <span class="run-note" id="p4-note"></span>
+          <button class="btn-ink" id="btn-p4" type="button">
+            <span data-icon="play" data-icon-size="15"></span><span>실행</span>
+          </button>
+        </div>
       </div>
-      <div class="run-bar">
-        <span class="run-note" id="p4-note"></span>
-        <button class="btn-ink" id="btn-p4" type="button">
-          <span data-icon="refresh" data-icon-size="15"></span><span>아바타 넣기</span>
-        </button>
-      </div>
-      <div id="p4-out"></div>
+
     </section>
 
     <!-- ── 6 빌드 ── -->
@@ -317,14 +413,16 @@
           </label>
         </div>
         <p class="opt-say" id="p5-say"></p>
+        <div class="run-in">
+          <span class="run-note" id="p5-note"></span>
+          <button class="btn-ink" id="btn-p5" type="button">
+            <span data-icon="play" data-icon-size="15"></span><span>실행</span>
+          </button>
+        </div>
       </div>
-      <div class="run-bar">
-        <span class="run-note" id="p5-note"></span>
-        <button class="btn-ink" id="btn-p5" type="button">
-          <span data-icon="film" data-icon-size="15"></span><span>굽기</span>
-        </button>
-      </div>
+      <p class="sc-legend">씬 칸의 눈금 넷은 <b>슬라이드 · 목소리 · 아바타 · 검수본</b> 입니다 — 노란 칸이 끝난 것입니다.</p>
       <div id="p5-out"></div>
+
     </section>
 
     <!-- ── 7 결과 ── -->
@@ -371,7 +469,7 @@
   <p class="sheet-why">
     <b>자막 번역이 필요할 때만 쓰입니다.</b> 1~7 단계는 이것 없이도 다 돕니다.
     API 키를 쓰지 않고 <code>claude</code> CLI 로 로그인해 둔 세션을 그대로 씁니다 —
-    <b>perso 키와는 별개 자격증명이고 청구도 따로입니다.</b>
+    <b>HeyGen 키와는 별개 자격증명이고 청구도 따로입니다.</b>
   </p>
 
   <dl class="conn-rows" id="conn-rows"></dl>

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """P3 — 만들어진 목소리 길이에 자막을 다시 맞춘다.
 
-    build/<task>/subs/sceneNN.<lang>.srt   (대본 시각 기준)
-        → build/<task>/aligned/sceneNN.<lang>.srt   (실제 목소리 기준)
+    강의/<작업>/subs/sceneNN.<lang>.srt   (대본 시각 기준)
+        → 강의/<작업>/aligned/sceneNN.<lang>.srt   (실제 목소리 기준)
 
 대본에 적힌 씬 길이(71초)는 **시연본 음성 기준**이다. perso TTS 로 다시 만들면
 같은 문장이라도 68초나 76초가 나온다. 그대로 두면 자막이 통째로 밀린다.
@@ -26,10 +26,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from scripts.common import ROOT, die, load_json, mmss, need, save_json
+from scripts.common import ROOT, die, load_json, mmss, need, save_json, scene_paths
 from scripts.cues import Cue, enforce_timing, parse_srt, to_srt
 
-BUILD = ROOT / "build"
 
 
 def main() -> None:
@@ -37,10 +36,10 @@ def main() -> None:
     ap.add_argument("--task", default="lecture01")
     a = ap.parse_args()
 
-    task = BUILD / a.task
-    meta = load_json(need(task / "scenes.json", "p1_scenes.py 를 먼저 돌리세요"))
+    P = scene_paths(a.task)
+    meta = load_json(need(P.meta, "p1_scenes.py 를 먼저 돌리세요"))
     lang = meta["sub_lang"]
-    out_dir = task / "aligned"
+    out_dir = P.aligned
     out_dir.mkdir(parents=True, exist_ok=True)
 
     todo = [r for r in meta["scenes"] if r.get("voice")]
@@ -53,7 +52,7 @@ def main() -> None:
         no = int(r["no"])
         # subs/ 에 있는 **모든 언어**를 맞춘다. 기본 자막만 맞추면 트랙으로
         # 얹힐 다른 언어가 옛 시각을 그대로 갖고 있어 소리와 어긋난다.
-        found = sorted((task / "subs").glob(f"scene{no:02d}.*.srt"))
+        found = sorted(P.subs.glob(f"scene{no:02d}.*.srt"))
         if not found:
             die(f"scene{no:02d} 자막이 없습니다 — «다국어 자막» 을 먼저 돌리세요")
 
@@ -81,7 +80,7 @@ def main() -> None:
         print(f"  {no:02d}  대본 {mmss(had):>7} → 목소리 {mmss(want):>7}  "
               f"자막 {n_cue:3d}개 [{langs}]{mark}")
 
-    save_json(task / "scenes.json", meta)
+    save_json(P.meta, meta)
     print(f"\n가장 큰 차이 {worst:.2f}초")
     if worst < 0.25:
         print("대본과 목소리가 거의 같습니다 — 밀림 걱정은 없습니다.")

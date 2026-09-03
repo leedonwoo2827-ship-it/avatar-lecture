@@ -766,3 +766,54 @@ body.rail-off .conn-text { display: none; }
 /* 브랜드 마크 — 글자가 아니라 그림이 들어가므로 좌우 여백을 줄이고 정사각에 가깝게 */
 .brand-mark { min-width: 34px; padding: 0; }
 .brand-mark svg { display: block; }
+
+/* ══ 강의 목록 ═══════════════════════════════════════════════════════════════
+   120강까지 쌓인다. 한 줄에 여러 개를 깔고, 진행 현황을 점으로 보여 준다 —
+   목록을 스크롤하며 «어디까지 됐지» 를 세지 않아도 되게. */
+.lec-list { display: grid; gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.lec { display: block; width: 100%; text-align: left; cursor: pointer;
+  padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--card); font: inherit; color: inherit; }
+.lec:hover { border-color: var(--ink-3); background: var(--hover); }
+.lec.on { border-color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); }
+.lec-name { font-weight: 700; letter-spacing: .01em; }
+.lec-sub { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+.lec-dots { display: flex; gap: 3px; margin-top: 7px; }
+.lec-dots i { width: 14px; height: 4px; border-radius: 2px; background: var(--line); }
+.lec-dots i.on { background: var(--brand); }
+.lec-warn { color: var(--err); }
+
+/* ══ 묶음 목록 ═══════════════════════════════════════════════════════════════
+   묶음 하나가 «업체에 한 번 올리는 단위»다. 몇 씬을 담았고 아바타를 받았는지가
+   한눈에 보여야 한다 — 5개를 오가며 «이건 받았나» 를 세지 않게. */
+.bundle-list { display: grid; gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.bundle { padding: 11px 13px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--card); }
+.bundle-h { display: flex; align-items: baseline; justify-content: space-between;
+  gap: 8px; }
+.bundle-h b { font-size: 14px; letter-spacing: .01em; }
+.bundle-sec { font-variant-numeric: tabular-nums; color: var(--ink-3);
+  font-size: 12px; }
+.bundle-sub { margin-top: 3px; font-size: 12px; color: var(--ink-2); }
+.bundle-t { margin-top: 7px; display: flex; flex-direction: column; gap: 2px; }
+.bundle-t span { font-size: 11px; color: var(--ink-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bundle-t span::before { content: "· "; }
+
+/* 실행 줄 — 설정 카드 **안**에 둔다. 고르는 자리와 누르는 자리가 멀면
+   «무엇을 고르고 무엇을 눌렀는지» 가 눈에서 끊긴다. */
+.run-in { display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.run-in .run-note { font-size: 13px; color: var(--ink-3); }
+
+/* 씬 칸의 눈금 넷이 무엇인지 — 마우스를 올려야 아는 것은 모르는 것과 같다 */
+.sc-legend { margin: 4px 0 10px; font-size: 12px; color: var(--ink-3); }
+
+/* 스타일 고르는 그림은 **작은 썸네일**이다. 화면을 채우면 정작 고를 항목이
+   스크롤 밖으로 밀려 «세 개 중 하나»라는 것이 안 보인다. */
+.style-pick { grid-template-columns: repeat(3, 1fr); }
+.style-fig { height: 96px; }
+.style-box em { font-size: 12px; line-height: 1.45; }
+.lec-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

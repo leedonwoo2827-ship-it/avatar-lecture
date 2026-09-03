@@ -27,7 +27,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from scripts.common import ROOT, load_json, local_config
+from scripts.common import LECTURES, ROOT, load_json, local_config, scene_paths
 from scripts.cues import parse_srt, to_srt, Cue
 
 PORT = 6326
@@ -38,7 +38,7 @@ HERE = Path(__file__).resolve().parent
 # s1~s7 은 faster-whisper 가 필요하니 그때는 .venv 가 있어야 한다.
 _VENV = ROOT / ".venv" / "Scripts" / "python.exe"
 PY = _VENV if _VENV.is_file() else Path(sys.executable)
-BUILD = ROOT / "build"
+BUILD = LECTURES   # 강의 하나가 폴더 하나 (scripts/common.scene_paths)
 
 # ══ 순서 ═══════════════════════════════════════════════════════════════════
 # 화면의 번호와 같은 순서다. 자막(p3)이 목소리(p2) 뒤에 오는 것은 자막 타임코드를
@@ -48,6 +48,7 @@ SCENE_STEPS = [
     ("p2",  "목소리"),
     ("p2b", "다국어 자막"),
     ("p3",  "자막 맞추기"),
+    ("p3b", "음성 묶음"),
     ("p4",  "아바타"),
     ("p5",  "합치기"),
 ]
@@ -101,9 +102,22 @@ def scene_args(o: dict) -> dict[str, list[str]]:
                 "--from", o["script_lang"], "--to", o["sub_lang"]]
                + (["--force"] if o.get("retranslate") else []),
         "p3": ["scripts/p3_resync.py", "--task", task],
-        "p4": ["scripts/p4_avatar.py", "--task", task, "--engine", o["avatar_engine"]],
+        # 아바타 업체(HeyGen)에 넣을 덩어리. 10분 상한 안에서 씬 경계로만 묶는다 —
+        # 45분 강의가 4조각이 된다. 아바타를 씬별로 렌더하면 매 씬 시작마다
+        # 자세가 리셋되어 이어붙인 자리가 튀므로 묶어 넣는다.
+        "p3b": ["scripts/p3b_voicepack.py", "--task", task,
+                "--max-sec", str(o["bundle_max_sec"]), "--pack", o["bundle_pack"]],
+        "p4": ["scripts/p4_avatar.py", "--task", task, "--engine", o["avatar_engine"]]
+              # ★ avatar_src 가 **비어 있으면 --from 을 아예 안 붙인다.** 빈 값으로
+              #   넘기면 argparse 가 빈 경로를 받아 죽는다. 안 붙이면 p4 가 묶음
+              #   폴더(05/bundleNN/)를 본다 — 그게 기본 길이다.
+              + (["--from", o["avatar_src"]]
+                 if (o["avatar_engine"] == "drop" and o["avatar_src"]) else []),
         "p5": ["scripts/p5_compose.py", "--task", task, "--style", o["style"],
                "--subs", o["subs_mode"], "--avatar-h", str(o["avatar_h"]),
+               "--avatar-vary", str(o["avatar_vary"]),
+               "--avatar-sink", str(o["avatar_sink"]),
+               "--avatar-rotate", str(o["avatar_rotate"]),
                "--slide-fit", o["slide_fit"], "--join"],
     }
 
@@ -111,9 +125,9 @@ def scene_args(o: dict) -> dict[str, list[str]]:
 def run_scene_pipeline(opts: dict) -> None:
     """전부 만들기 — p1~p5 를 순서대로 돌린다.
 
-    perso 가 아직 안 붙어 있으므로 기본은 **크레딧을 안 쓰는 엔진**이다:
-    목소리는 시연본에서 떼어 오고(source), 아바타는 임시 아바타(stub)를 놓는다.
-    화면과 배치를 다 확인한 뒤 키를 발급하고 engine 만 perso 로 바꾸면 된다.
+    기본은 **돈을 안 쓰는 엔진**이다: 목소리는 원본에서 떼어 오고(source),
+    아바타는 임시 아바타(stub)를 놓는다. 화면과 배치를 다 확인한 뒤 아바타만
+    갈아 끼운다 — `drop`(HeyGen 웹에서 렌더해 내려받기) 또는 `heygen`(API).
     """
     JOB.lines.clear()
     JOB.running, JOB.failed, JOB.ws = True, False, ""
@@ -180,7 +194,7 @@ def scene_rows() -> list[dict]:
     if not BUILD.is_dir():
         return rows
     for d in sorted((p for p in BUILD.iterdir() if p.is_dir()), reverse=True):
-        mp = d / "scenes.json"
+        mp = scene_paths(d.name).meta
         if not mp.is_file():
             continue
         try:
@@ -213,6 +227,9 @@ def scene_rows() -> list[dict]:
             "total": meta.get("voice_total_sec") or meta.get("total_sec") or 0,
             "scenes": scenes,
             "all": joined.name if joined.is_file() else "",
+            # 묶음 개수 — 화면의 «묶음» 단계가 이 값으로 «아직 안 만들었습니다» 를
+            # 판단한다. 없으면 5개가 있어도 안 만든 것으로 나온다.
+            "bundles": len(meta.get("bundles", [])),
             "preview_dir": str(d / "preview"),
             "src": {"script": meta.get("script", ""), "subs": meta.get("subs", ""),
                     "slides": meta.get("slides", "")},
@@ -228,7 +245,10 @@ def scene_defaults() -> dict:
     PNG 가 많은 폴더다) 여기서 찍어 주고 사람이 고치게 한다.
     """
     out = {"script": "", "subs": "", "slides": "", "source": ""}
-    roots = sorted(p for p in ROOT.glob("_context*") if p.is_dir())
+    # `_context*` 는 옛 이름이다. 재료를 한 폴더에 모아 두는 쪽이 편해서
+    # `__last-*` · `assets` 도 같이 본다 — 어느 이름으로 두든 찍어 준다.
+    roots = sorted({p for pat in ("_context*", "__last-*", "assets")
+                    for p in ROOT.glob(pat) if p.is_dir()})
     if not roots:
         return out
 
@@ -256,8 +276,114 @@ def scene_defaults() -> dict:
     return out
 
 
+LECTURE_DIR = LECTURES
+SLIDE_SUBS = ("slides", "슬라이드", "_build/slides")
+MATERIAL_SUBS = ("00", "재료", "materials", "src", "input")
+
+
+def materials_in(d: Path) -> dict:
+    r"""폴더 하나 -> 재료 네 자리. **경로를 외우지 않고 찾는다.**
+
+    보내는 쪽마다 이름이 다르다 - 슬라이드를 `slides\` 로 줄지 `슬라이드\` 로 줄지,
+    재료를 강의 폴더 바로 아래 둘지 `재료\` 안에 둘지 알 수 없다. 120강이 쌓이는데
+    매번 네 칸을 손으로 채우게 하면 그게 곧 일이 된다. scripts/bundle.py 가
+    s1~s7 에서 하는 것과 같은 사고다.
+
+        강의\001-emr\                또는   강의\001-emr\재료\
+          아무이름.mp4                        아무이름.mp4
+          아무이름.srt                        아무이름.srt
+          아무이름.txt                        아무이름.txt
+          slides\                            slides\
+
+    둘 다 된다. 재료 폴더가 있으면 그쪽을 먼저 본다.
+    """
+    out = {"script": "", "subs": "", "slides": "", "source": ""}
+    if not d.is_dir():
+        return out
+
+    # 재료를 담아 둔 하위 폴더가 있으면 그 안을 본다. 없으면 폴더 바로 아래.
+    roots = [x for name in MATERIAL_SUBS if (x := d / name).is_dir()] + [d]
+
+    for r in roots:
+        txts = sorted(x for x in r.glob("*.txt") if "넣으세요" not in x.name)
+        srts = sorted(r.glob("*.srt"))
+        mp4s = sorted(x for x in r.glob("*.mp4") if x.stat().st_size > 1_000_000)
+        if txts and not out["script"]:
+            out["script"] = str(txts[0])
+        if srts and not out["subs"]:
+            out["subs"] = str(srts[0])
+        if mp4s and not out["source"]:
+            out["source"] = str(mp4s[0])
+        if out["slides"]:
+            continue
+        for name in SLIDE_SUBS:
+            cand = r / name
+            if cand.is_dir() and any(cand.glob("*.png")):
+                out["slides"] = str(cand)
+                break
+        if not out["slides"]:
+            best, best_n = None, 0
+            for x in [r] + [y for y in r.iterdir() if y.is_dir()]:
+                n = len([z for z in x.glob("*.png") if re.match(r"^\d+", z.stem)])
+                if n > best_n:
+                    best, best_n = x, n
+            if best is not None:
+                out["slides"] = str(best)
+    return out
+
+
+def lecture_rows() -> list[dict]:
+    r"""«강의» 목록 — 재료 폴더 하나가 강의 하나다. 120개까지 쌓인다.
+
+    `강의\` 안의 폴더를 보고, 예전 이름(`__last-*`)도 같이 본다. 각 강의가
+    어디까지 됐는지는 `build/<작업>/scenes.json` 에서 읽는다 — 재료와 산출을
+    갈라 두었으므로 재료 폴더는 건드리지 않는다.
+    """
+    dirs: list[Path] = []
+    if LECTURE_DIR.is_dir():
+        dirs += sorted(x for x in LECTURE_DIR.iterdir() if x.is_dir())
+    dirs += sorted(x for x in ROOT.glob("__last-*") if x.is_dir())
+
+    rows: list[dict] = []
+    for d in dirs:
+        m = materials_in(d)
+        task = d.name
+        mp = scene_paths(task).meta
+        meta = None
+        if mp.is_file():
+            try:
+                meta = load_json(mp)
+            except Exception:  # noqa: BLE001 — 깨진 json 이 목록을 막지 않게
+                meta = None
+        sc = (meta or {}).get("scenes", [])
+        n_slides = 0
+        if m["slides"]:
+            n_slides = len([x for x in Path(m["slides"]).glob("*.png")
+                            if re.match(r"^\d+", x.stem)])
+        rows.append({
+            "task": task, "dir": str(d),
+            "ready": bool(m["script"] and m["slides"]),
+            # ★ **m 을 먼저 펼친다.** 뒤에 두면 m["slides"](경로)가 장수를 덮어
+            #   화면에 «슬라이드=D:\…\slides장» 이 찍힌다(2026-09-03 실측).
+            **m,
+            "slide_count": n_slides,
+            # 진행 현황 — 화면 왼쪽 레일의 점과 같은 것을 목록에서도 보여 준다
+            "scenes": len(sc),
+            "voice": sum(1 for r in sc if r.get("voice")),
+            "subs_done": sum(1 for r in sc if r.get("aligned")),
+            "bundles": len((meta or {}).get("bundles", [])),
+            "avatar": sum(1 for r in sc if r.get("avatar")),
+            "preview": sum(1 for r in sc if r.get("preview")),
+            "sub_langs": (meta or {}).get("sub_langs", []),
+            "total_sec": (meta or {}).get("voice_total_sec")
+                         or (meta or {}).get("total_sec") or 0,
+            "all": (meta or {}).get("all", ""),
+        })
+    return rows
+
+
 def perso_status() -> dict:
-    """perso 연결 상태. 아직 안 붙었으면 왜 안 붙었는지 그대로 말한다."""
+    """perso 연결 상태. **안 붙었다** — HeyGen 으로 옮겼다. 자리만 남겨 둔다."""
     try:
         from perso.client import status
         return status()
@@ -266,11 +392,29 @@ def perso_status() -> dict:
                 "endpoints": {}, "rates": {}, "credit_usd": 0}
 
 
+def heygen_status() -> dict:
+    """HeyGen 연결 상태. 안 붙었으면 왜 안 붙었는지 그대로 말한다."""
+    try:
+        from heygen.client import status
+        return status()
+    except Exception as e:  # noqa: BLE001 — 상태 조회가 화면을 막지 않게
+        return {"ok": False, "key": False, "why": f"상태를 읽지 못했습니다: {e}",
+                "endpoints": {}, "rates": {}, "rate_now": 0, "engine": "",
+                "avatar_id": "", "voice_uz": "", "motion_prompt": "",
+                "min_topup_usd": 0}
+
+
+# 옛 이름 → 번호 폴더. 화면과 API 는 뜻이 있는 이름으로 부르고, 디스크는
+# 단계 순서대로 번호를 쓴다 — 어느 쪽도 상대의 규칙을 외우지 않는다.
+SUB_NO = {"slides": "01/slides", "subs": "01/subs", "voice": "02",
+          "aligned": "03", "upload": "05", "avatar": "07", "preview": "09"}
+
+
 def scene_dir(task: str, sub: str) -> Path | None:
-    """`build/<task>/<sub>/` — 이름이 수상하면 None. build/ 밖은 절대 안 준다."""
+    """`강의/<task>/<번호>/` — 이름이 수상하면 None. 강의/ 밖은 절대 안 준다."""
     if not task or not re.match(r"^[0-9A-Za-z가-힣_.-]{1,40}$", task):
         return None
-    d = (BUILD / task / sub).resolve()
+    d = (BUILD / task / SUB_NO.get(sub, sub)).resolve()
     if BUILD.resolve() not in d.parents or not d.is_dir():
         return None
     return d
@@ -469,6 +613,35 @@ class Handler(BaseHTTPRequestHandler):
                                "scripts": [{"key": k, "label": l} for k, l in SCRIPTS]})
         if path == "/api/perso":
             return self._json(perso_status())
+        if path == "/api/heygen":
+            return self._json(heygen_status())
+        if path == "/api/lectures":
+            return self._json({"lectures": lecture_rows(),
+                               "dir": str(LECTURE_DIR)})
+        if path == "/api/bundles":
+            # 묶음 표 — 화면 위쪽 탭이 이걸 읽는다
+            name = (q.get("task") or ["lecture01"])[0]
+            mp = scene_paths(name).meta
+            if not mp.is_file():
+                return self._json({"bundles": [], "upload": ""})
+            try:
+                meta = load_json(mp)
+            except Exception:  # noqa: BLE001
+                return self._json({"bundles": [], "upload": ""})
+            by_no = {int(r["no"]): r for r in meta.get("scenes", [])}
+            rows = []
+            for b in meta.get("bundles", []):
+                nos = [int(x) for x in b.get("scenes", [])]
+                rows.append({
+                    **b,
+                    "titles": [str(by_no.get(n, {}).get("title", "")) for n in nos],
+                    # 그 묶음 씬들이 아바타를 받았는지 — 진행 현황 표시용
+                    "avatar": sum(1 for n in nos if by_no.get(n, {}).get("avatar")),
+                    "preview": sum(1 for n in nos if by_no.get(n, {}).get("preview")),
+                })
+            return self._json({"bundles": rows,
+                               "upload": str(scene_paths(name).upload),
+                               "max_sec": meta.get("bundle_max_sec", 590)})
         if path == "/api/scene-media":
             # 씬 검수본을 브라우저에서 바로 재생하기 위한 자리
             name = (q.get("task") or [""])[0]
@@ -503,6 +676,20 @@ class Handler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         path, body = u.path, self._body()
 
+        if path == "/api/heygen-key":
+            # 키는 파일(heygen.local.json)에만 넣는다. 되돌려 주는 건 status() 뿐이라
+            # 화면에 키 자체가 다시 실려 나가지 않는다.
+            try:
+                from heygen.client import save_conf
+                st = save_conf(api_key=body.get("api_key") or "",
+                               avatar_id=body.get("avatar_id") or "",
+                               voice_uz=body.get("voice_uz") or "",
+                               engine=body.get("engine") or "",
+                               motion_prompt=body.get("motion_prompt") or "")
+            except Exception as e:  # noqa: BLE001
+                return self._json({"error": f"저장하지 못했습니다: {e}"}, 500)
+            return self._json({"ok": True, "status": st})
+
         if path == "/api/perso-key":
             # 키는 파일에만 넣는다. 되돌려 주는 건 status() 뿐이라 화면에
             # 키 자체가 다시 실려 나가지 않는다.
@@ -527,9 +714,13 @@ class Handler(BaseHTTPRequestHandler):
             opts = {
                 "task": (body.get("task") or "lecture01").strip(),
                 "scenes": body.get("scenes") or "1-8",
-                "style": body.get("style") or "panel",
+                "style": body.get("style") or "full",
                 "voice_engine": body.get("voice_engine") or "source",
                 "avatar_engine": body.get("avatar_engine") or "stub",
+                # drop = HeyGen 웹에서 렌더해 내려받은 영상이 있는 폴더
+                "avatar_src": body.get("avatar_src") or "",
+                "bundle_max_sec": body.get("bundle_max_sec") or "590",
+                "bundle_pack": ("fill" if body.get("bundle_pack") == "fill" else "even"),
                 "script": body.get("script") or "",
                 "subs": body.get("subs") or "",
                 "slides": body.get("slides") or "",
@@ -538,13 +729,15 @@ class Handler(BaseHTTPRequestHandler):
                 "script_lang": body.get("script_lang") or cfg["audio_lang"],
                 "retranslate": bool(body.get("retranslate")),
                 "subs_mode": body.get("subs_mode") or "burn",
-                "avatar_h": body.get("avatar_h") or "0.80",
+                "avatar_h": body.get("avatar_h") or "0.85",
+                "avatar_vary": body.get("avatar_vary") or "40",
+                "avatar_rotate": body.get("avatar_rotate") or "0",
                 "slide_fit": body.get("slide_fit") or "contain",
             }
             if not re.match(r"^[0-9A-Za-z가-힣_.-]{1,40}$", opts["task"]):
                 return self._json({"error": "작업 이름에 쓸 수 없는 글자가 있습니다"}, 400)
-            if opts["style"] not in ("full", "panel"):
-                return self._json({"error": "스타일은 전면샷·여백형 둘뿐입니다"}, 400)
+            if opts["style"] not in ("full", "panel", "both"):
+                return self._json({"error": "스타일은 전면샷·여백형·둘 다 중 하나입니다"}, 400)
             try:
                 av = float(opts["avatar_h"])
                 if not 0.2 <= av <= 1.0:
@@ -566,6 +759,13 @@ class Handler(BaseHTTPRequestHandler):
             if step in ("", "p2") and opts["voice_engine"] == "source"                     and not Path(opts["source"]).is_file():
                 return self._json(
                     {"error": f"목소리를 떼어 올 원본이 없습니다: {opts['source'] or '(비어 있음)'}"}, 400)
+            # ★ avatar_src 는 **비워 두는 것이 기본**이다 — 그러면 p4 가 묶음 폴더
+            #   (05/bundleNN/)를 본다. 거기서 mp3 를 꺼내 올렸으니 내려받은 영상도
+            #   거기 되돌려 놓는 것이 자연스럽다. 다운로드 폴더에서 바로 읽고 싶을
+            #   때만 채운다. 그래서 «비어 있음» 을 오류로 보지 않는다.
+            if step in ("", "p4") and opts["avatar_engine"] == "drop"                     and opts["avatar_src"] and not Path(opts["avatar_src"]).exists():
+                return self._json(
+                    {"error": f"그 폴더를 찾지 못했습니다: {opts['avatar_src']}"}, 400)
 
             target = (lambda: run_one_step(step, opts)) if step else (lambda: run_scene_pipeline(opts))
             threading.Thread(target=target, daemon=True).start()
