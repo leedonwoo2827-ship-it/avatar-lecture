@@ -86,12 +86,23 @@ const post = (path, body) => api(path, {
 });
 const task = () => TASK || (STATE.scenes[0] && STATE.scenes[0].task) || "001";
 
+/* ★ **고른 강의의 줄.** 여태 `STATE.scenes[0]` — 목록의 첫 줄 — 을 썼다.
+ *   목록은 이름 역순이라 첫 줄이 고른 강의가 아니다. 그래서 「샘플」을 골라
+ *   두고도 씬 개수·묶음 개수·자막 언어·진행 점이 전부 「001」 것을 읽었다.
+ *   한 화면에서 «묶음이 없습니다» 와 «묶음 5개» 가 같이 뜬 원인이다.
+ *
+ *   고른 강의가 아직 p1 을 안 돌아 scenes.json 이 없으면 undefined 다.
+ *   그것이 맞다 — 그 강의는 실제로 아무것도 없다. 다른 강의 숫자로 채워
+ *   보여 주는 것이 거짓말이다.
+ */
+const cur = () => (STATE.scenes || []).find((r) => r.task === task());
+
 /* ── 좌측 순서 ──────────────────────────────────────────────
  * 상태 점은 scenes.json 이 채워진 정도로 정한다 — 파일이 사실이고 화면은
  * 그걸 비출 뿐이다. done(다 됨) · part(일부) · 없음(회색).
  */
 function stepState(page) {
-  const j = STATE.scenes[0];
+  const j = cur();
   if (!j || !j.scenes.length) return page === "p0" ? "done" : "";
   const n = j.scenes.length;
   const got = {
@@ -223,7 +234,7 @@ function payload(step) {
  * 크레딧이 드는지 아닌지가 누르기 **전에** 보여야 한다.
  */
 function drawNotes() {
-  const j = STATE.scenes[0];
+  const j = cur();
   const n = j ? j.scenes.length : 0;
   const set = (sel, html) => { const el = $(sel); if (el) el.innerHTML = html; };
 
@@ -333,11 +344,11 @@ const langByTag = (tag) => LANGS.langs.find((l) => l.tag === tag);
 
 /* 처음에 넣은 자막의 언어. 00/ 의 srt 가 무슨 말이었나 — p1 이 scenes.json 에
    `sub_lang` 으로 적어 둔다. 강의를 안 골랐으면 «ru» 로 떨어뜨린다. */
-const baseLang = () => (STATE.scenes[0] || {}).sub_lang || "ru";
+const baseLang = () => (cur() || {}).sub_lang || "ru";
 
 function drawLangs() {
   localStorage.setItem("sc.sublangs", picked.join(","));
-  const j = STATE.scenes[0];
+  const j = cur();
 
   // 고른 것 — 맨 앞이 기본 자막이다. 줄 수를 같이 보여 준다.
   const host = $("#lang-picked");
@@ -372,7 +383,7 @@ function drawLangs() {
         `<span class="lang-cps">${cps.join("~")}자/초</span></div>` +
         `<div class="lang-row">` + ls.map((l) => {
           const fixed = l.tag === baseLang();
-          const made = ((STATE.scenes[0] || {}).langs_have || []).includes(l.tag);
+          const made = ((cur() || {}).langs_have || []).includes(l.tag);
           return `<button type="button" class="lang-chip` +
             (picked.includes(l.tag) ? " on" : "") + (fixed ? " lang-fixed" : "") + `" ` +
             (fixed ? "" : `data-add="${l.tag}" `) +
@@ -531,7 +542,7 @@ $("#btn-p5").onclick = () => run("p5", "#btn-p5");
 function drawScenes(hostSel, forStep) {
   const host = $(hostSel);
   if (!host) return;
-  const j = STATE.scenes[0];
+  const j = cur();
   host.innerHTML = "";
   if (!j || !j.scenes.length) {
     host.innerHTML = '<p class="job-empty">아직 씬이 없습니다. 2 씬에서 떼어 내세요.</p>';
@@ -574,7 +585,7 @@ function drawScenes(hostSel, forStep) {
 /* ── 7 결과 ────────────────────────────────────────────────── */
 function drawDone() {
   const host = $("#sc-out");
-  const j = STATE.scenes[0];
+  const j = cur();
   host.innerHTML = "";
   if (!j || !j.scenes.length) {
     host.innerHTML = '<p class="job-empty">아직 만든 것이 없습니다.</p>';
@@ -616,7 +627,7 @@ function drawDone() {
 /* ── 4 자막 ────────────────────────────────────────────────── */
 const subLang = () => {
   const m = /scene\d+\.([a-z]{2})\.srt/.exec($("#sub-scene").value || "");
-  return m ? m[1] : (STATE.scenes[0] || {}).sub_lang || "ru";
+  return m ? m[1] : (cur() || {}).sub_lang || "ru";
 };
 
 async function loadSubs(file) {
@@ -1194,8 +1205,13 @@ function drawBundles() {
   const rows = BUNDLES.bundles || [];
   host.innerHTML = "";
   if (!rows.length) {
-    host.innerHTML = `<p class="sc-hint">아직 묶음이 없습니다 — 아래 `
-      + `<b>묶음 만들기</b>를 누르세요.</p>`;
+    const j = cur();
+    host.innerHTML = `<p class="sc-hint">`
+      + (!j
+          ? `«<b>${task()}</b>» 는 아직 <b>01 씬</b>부터 돌려야 합니다 — `
+            + `이 강의에는 씬이 없습니다.`
+          : `아직 묶음이 없습니다 — 아래 <b>실행</b>을 누르세요.`)
+      + `</p>`;
     return;
   }
   for (const b of rows) {
@@ -1226,11 +1242,16 @@ function drawBundles() {
     host.appendChild(d);
   }
   hydrateIcons(host);
+  // ★ 빈 경우에도 **반드시 다시 쓴다.** 예전에는 upload 가 비면 건드리지
+  //   않아, 아까 본 다른 강의의 경로가 그대로 남았다 — 「샘플」을 보면서
+  //   「강의」 가 떠 있던 원인이다.
   const el = $("#bundle-where");
-  if (el && BUNDLES.upload) {
-    el.innerHTML = `묶음 폴더는 <code>${BUNDLES.upload}</code> 에 있습니다. `
-      + `폴더마다 <b>올릴음성.mp3</b> 을 꺼내 업체에 드래그드랍하고, `
-      + `렌더된 영상을 <b>그 폴더에 되돌려</b> 놓으세요.`;
+  if (el) {
+    el.innerHTML = BUNDLES.upload
+      ? `묶음 폴더는 <code>${BUNDLES.upload}</code> 에 있습니다. `
+        + `폴더마다 <b>올릴음성.mp3</b> 을 꺼내 업체에 드래그드랍하고, `
+        + `렌더된 영상을 <b>그 폴더에 되돌려</b> 놓으세요.`
+      : `«<b>${task()}</b>» 에는 아직 묶음 폴더가 없습니다.`;
   }
 }
 
