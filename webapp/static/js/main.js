@@ -108,8 +108,24 @@ function stepState(page) {
   return got >= n ? "done" : got > 0 ? "part" : "";
 }
 
+/* 지금 보고 있는 강의를 사이드바에 적는다. 씬 개수까지 같이 적어, 그 강의가
+   아직 p1 을 안 돈 상태인지(0씬) 한눈에 보이게 한다 — 빈 화면을 보며
+   «안 만들었나» 를 되묻던 자리가 여기다. */
+function drawRailLec() {
+  const el = $("#rail-lec-v");
+  if (!el) return;
+  const now = task();
+  const L = (LECS || []).find((x) => x.task === now);
+  el.textContent = now || "안 골랐습니다";
+  el.title = L ? `씬 ${L.scenes}개 · 묶음 ${L.bundles}개` : "";
+  const btn = $("#rail-lec");
+  if (btn) btn.classList.toggle("warn", !!L && !L.scenes);
+}
+if ($("#rail-lec")) $("#rail-lec").onclick = () => { location.hash = "#/p0"; };
+
 function renderSteps() {
   const cur = (location.hash || "#/p0").replace("#/", "");
+  drawRailLec();
   $("#steps").innerHTML = STEPS.map((st) => `
     ${st.rule != null
         ? `<div class="step-rule${st.rule ? "" : " bare"}"><span>${st.rule}</span></div>`
@@ -462,6 +478,24 @@ async function tick() {
     if ((location.hash || "") === "#/p3") loadSubs();
     toast(s.failed ? "멈췄습니다 — 아래 기록을 보세요" : "끝났습니다", s.failed);
   }
+}
+
+/* 한 단계를, **정해진 씬 범위만** 돌린다.
+   묶음 하나가 왔을 때 서른두 씬을 전부 다시 재게 하면 안 된다. */
+async function runScenes(step, range, btn) {
+  if (btn) btn.disabled = true;
+  showDock(true);
+  $("#log").textContent = "";
+  logSeen = 0;
+  try {
+    await post("/api/scene-step", { ...payload(step), scenes: range });
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    return toast(e.message, true);
+  }
+  if (poll) clearInterval(poll);
+  poll = setInterval(tick, 1000);
+  tick();
 }
 
 async function run(step, btnSel) {
@@ -951,63 +985,196 @@ function drawAvatar() {
   }
   if (!drop) return;
   if (!rows.length) {
-    send.innerHTML = recv.innerHTML =
-      '<p class="sc-hint">묶음이 없습니다 — <b>05 묶음</b>에서 먼저 만드세요.</p>';
+    const why = `<p class="sc-hint">«<b>${task()}</b>» 에 묶음이 없습니다 — `
+      + `<b>05 묶음</b>에서 만들거나, <b>00 재료</b>에서 강의를 다시 고르세요.</p>`;
+    send.innerHTML = recv.innerHTML = why;
     return;
   }
 
-  // 올릴 mp3 는 세 갈래다: 통째 하나 · 장면별 · 씬별. 갈래를 적어 줘야
-  // «어느 걸 올려야 하나» 를 파일 이름으로 추측하지 않는다.
-  const kind = (rel) => rel.startsWith("장면/") ? "장면"
-    : rel.startsWith("씬/") ? "씬" : "통째";
   send.innerHTML = "";
   recv.innerHTML = "";
   for (const b of rows) {
-    const odd = (Number(b.no) % 2) ? "odd" : "even";
-    const nos = b.scenes || [];
-    const head = `<div class="bundle-h"><b>묶음 ${b.no}</b>` +
-      `<span class="bundle-sec">씬 ${nos[0]}~${nos[nos.length - 1]} · ${mmss(b.sec)}</span></div>`;
-    const open = `<button type="button" class="btn-plain" data-open="${b.path}">` +
-      `<span data-icon="folder" data-icon-size="14"></span><span>폴더 열기</span></button>`;
-
-    // ── 보내기 ──────────────────────────────────────────────────────────
-    const mp3 = (b.mp3s || []).filter((m) => kind(m.rel) !== "씬");
-    const nSc = (b.mp3s || []).length - mp3.length;
-    const sd = document.createElement("div");
-    sd.className = "bundle"; sd.dataset.bundle = odd;
-    sd.innerHTML = head + `<div class="file-list">` + mp3.map((m) =>
-        `<div class="file"><i class="file-k">${kind(m.rel)}</i>` +
-        `<span class="file-n">${m.rel}</span>` +
-        `<span class="file-s">${mmss(m.sec)} · ${m.mb}MB</span></div>`).join("")
-      + (nSc ? `<div class="file"><i class="file-k">씬</i>` +
-               `<span class="file-n">씬별로 ${nSc}개</span>` +
-               `<span class="file-s">씬마다 따로 뽑을 때</span></div>` : "")
-      + `</div><div class="bundle-acts">${open}</div>`;
-    send.appendChild(sd);
-
-    // ── 받기 ────────────────────────────────────────────────────────────
-    const vids = b.vids || [];
-    const av = b.avatar_scenes || [];
-    const left = nos.filter((n) => !av.includes(n));
-    const rd = document.createElement("div");
-    rd.className = "bundle"; rd.dataset.bundle = odd;
-    rd.innerHTML = head
-      + (vids.length
-          ? `<div class="file-list">` + vids.map((v) =>
-              `<div class="file"><i class="file-k ok">영상</i>` +
-              `<span class="file-n">${v.name}</span>` +
-              `<span class="file-s">${mmss(v.sec)} · ${v.mb}MB</span></div>`).join("")
-            + `</div>`
-          : `<p class="sc-hint">아직 받은 영상이 없습니다 — 위 칸의 mp3 를 올리세요.</p>`)
-      + `<div class="bundle-sub">` + (left.length
-          ? (av.length ? `붙은 씬 <b>${av.join(",")}</b> · ` : "")
-            + `남은 씬 <b>${left.join(",")}</b>`
-          : `<b style="color:var(--ok)">씬 ${nos.join(",")} 전부 붙었습니다</b>`)
-      + `</div><div class="bundle-acts">${open}</div>`;
-    recv.appendChild(rd);
+    send.appendChild(sendCard(b));
+    recv.appendChild(recvCard(b));
   }
   hydrateIcons(send); hydrateIcons(recv);
 }
+
+/* 보내기 칸 — 꺼낼 mp3 가 무엇이고 폴더가 어디인지만 말한다.
+   올릴 mp3 는 세 갈래다: 통째 하나 · 장면별 · 씬별. 갈래를 적어 줘야
+   «어느 걸 올려야 하나» 를 파일 이름으로 추측하지 않는다. */
+const mp3Kind = (rel) => rel.startsWith("장면/") ? "장면"
+  : rel.startsWith("씬/") ? "씬" : "통째";
+
+function bundleHead(b) {
+  const nos = b.scenes || [];
+  return `<div class="bundle-h"><b>묶음 ${b.no}</b>`
+    + `<span class="bundle-sec">씬 ${nos[0]}~${nos[nos.length - 1]} · ${mmss(b.sec)}</span></div>`;
+}
+
+function sendCard(b) {
+  const d = document.createElement("div");
+  d.className = "bundle";
+  d.dataset.bundle = (Number(b.no) % 2) ? "odd" : "even";
+  const all = b.mp3s || [];
+  const main = all.filter((m) => mp3Kind(m.rel) !== "씬");
+  const nSc = all.length - main.length;
+  d.innerHTML = bundleHead(b)
+    + `<div class="file-list">` + main.map((m) =>
+        `<div class="file"><i class="file-k">${mp3Kind(m.rel)}</i>`
+        + `<span class="file-n">${m.rel}</span>`
+        + `<span class="file-s">${mmss(m.sec)} · ${m.mb}MB</span></div>`).join("")
+    + (nSc ? `<div class="file"><i class="file-k">씬</i>`
+             + `<span class="file-n">씬별로 ${nSc}개</span>`
+             + `<span class="file-s">씬마다 따로 뽑을 때</span></div>` : "")
+    + `</div><div class="bundle-acts">`
+    + `<button type="button" class="btn-plain" data-open="${b.path}">`
+    + `<span data-icon="folder" data-icon-size="14"></span>`
+    + `<span>폴더 열기</span></button></div>`;
+  return d;
+}
+
+/* 받기 칸 — 끌어다 놓는 자리다.
+ * ★ 탐색기로 옮기게 하지 않는다. 이 칸이 이미 «어느 묶음» 인지 알고 있으니
+ *   사람이 폴더를 다시 찾아 들어갈 이유가 없다. 놓으면 그 묶음 폴더에
+ *   앉고, 목록에 뜨고, 바로 아래 단추로 붙인다.
+ * ★ 묶음마다 단추를 따로 둔다. 다섯 묶음이 다 오길 기다리지 않고 온 것부터
+ *   붙여 확인할 수 있어야 한다 — 하나가 잘못 왔을 때 나머지가 멈추면 안 된다.
+ */
+function recvCard(b) {
+  const d = document.createElement("div");
+  d.className = "bundle drop-zone";
+  d.dataset.bundle = (Number(b.no) % 2) ? "odd" : "even";
+  const nos = b.scenes || [];
+  const vids = b.vids || [];
+  const av = b.avatar_scenes || [];
+  const left = nos.filter((n) => !av.includes(n));
+  const bdir = b.dir || ("bundle" + String(b.no).padStart(2, "0"));
+  const secs = vids.reduce((a, v) => a + (Number(v.sec) || 0), 0);
+  // 길이 합이 남은 씬 길이와 맞는지 — p4 가 볼 조건을 미리 보여 준다
+  const fit = vids.length
+    ? Math.abs(secs - Number(b.sec)) <= Math.max(3, 0.02 * Number(b.sec))
+    : false;
+
+  d.innerHTML = bundleHead(b)
+    + `<div class="file-list">` + vids.map((v) =>
+        `<div class="file"><i class="file-k ok">영상</i>`
+        + `<span class="file-n">${v.name}</span>`
+        + `<span class="file-s">${mmss(v.sec)} · ${v.mb}MB</span>`
+        + `<button type="button" class="file-x" data-del="${v.name}" `
+        + `data-bundle-dir="${bdir}" title="이 영상을 지웁니다">×</button></div>`).join("")
+    + `</div>`
+    + `<label class="drop-say">`
+    + `<input type="file" accept="video/*,.webm,.mov,.mkv" multiple hidden />`
+    + `<span data-icon="film" data-icon-size="15"></span>`
+    + `<span>받은 영상을 <b>여기에 끌어다 놓거나</b> 눌러서 고르세요</span></label>`
+    + `<div class="drop-bar" hidden><i></i><span></span></div>`
+    + `<div class="bundle-sub">` + (vids.length
+        ? (fit ? `<b style="color:var(--ok)">길이 합 ${mmss(secs)} — 묶음과 맞습니다</b>`
+               : `길이 합 <b>${mmss(secs)}</b> / 묶음 <b>${mmss(b.sec)}</b> — `
+                 + `아직 모자랍니다`) + " · "
+        : "")
+      + (left.length
+          ? (av.length ? `붙은 씬 <b>${av.join(",")}</b> · ` : "")
+            + `남은 씬 <b>${left.join(",")}</b>`
+          : `<b style="color:var(--ok)">씬 ${nos.join(",")} 전부 붙었습니다</b>`)
+    + `</div>`
+    + `<div class="bundle-acts">`
+    + `<button type="button" class="btn-ink sm" data-attach="${b.no}" `
+    + (vids.length ? "" : "disabled ") + `>`
+    + `<span data-icon="play" data-icon-size="14"></span>`
+    + `<span>이 묶음 붙이기</span></button>`
+    + `<button type="button" class="btn-plain" data-open="${b.path}">`
+    + `<span data-icon="folder" data-icon-size="14"></span>`
+    + `<span>폴더 열기</span></button></div>`;
+
+  // ── 끌어다 놓기 ─────────────────────────────────────────────────────────
+  const inp = d.querySelector('input[type="file"]');
+  inp.onchange = () => sendFiles(b, [...inp.files]);
+  for (const ev of ["dragenter", "dragover"]) {
+    d.addEventListener(ev, (e) => { e.preventDefault(); d.classList.add("over"); });
+  }
+  for (const ev of ["dragleave", "drop"]) {
+    d.addEventListener(ev, (e) => { e.preventDefault(); d.classList.remove("over"); });
+  }
+  d.addEventListener("drop", (e) => {
+    const fs = [...(e.dataTransfer.files || [])];
+    if (fs.length) sendFiles(b, fs);
+  });
+  return d;
+}
+
+/* 파일을 그 묶음 폴더로 올린다. 한 번에 여러 개도 된다 — 도입 하나와
+   본문 하나를 같이 놓는 것이 이 강의의 기본 모양이다. */
+async function sendFiles(b, files) {
+  const bdir = b.dir || ("bundle" + String(b.no).padStart(2, "0"));
+  const card = [...$$(".drop-zone")].find((x) =>
+    x.querySelector(`[data-attach="${b.no}"]`));
+  const bar = card && card.querySelector(".drop-bar");
+  const fill = bar && bar.querySelector("i");
+  const say = bar && bar.querySelector("span");
+  if (bar) bar.hidden = false;
+
+  let i = 0;
+  for (const f of files) {
+    i += 1;
+    if (say) say.textContent = `${i}/${files.length} ${f.name} 올리는 중…`;
+    try {
+      await upload(b, bdir, f, (pct) => { if (fill) fill.style.width = pct + "%"; });
+    } catch (e) {
+      if (bar) bar.hidden = true;
+      return toast(`${f.name} — ${e.message}`, true);
+    }
+  }
+  if (bar) bar.hidden = true;
+  toast(`${files.length}개를 묶음 ${b.no} 에 넣었습니다`);
+  loadBundles();
+}
+
+/* XHR 을 쓴다 — fetch 는 올리는 진행률을 알려 주지 않는다. 100MB 짜리를
+   올리는 동안 아무 표시가 없으면 사람은 멈춘 줄로 안다. */
+function upload(b, bdir, file, onPct) {
+  const url = `/api/bundle-drop?task=${encodeURIComponent(task())}`
+    + `&bundle=${encodeURIComponent(bdir)}`
+    + `&name=${encodeURIComponent(file.name)}`;
+  return new Promise((ok, no) => {
+    const x = new XMLHttpRequest();
+    x.open("POST", url);
+    x.upload.onprogress = (e) => {
+      if (e.lengthComputable) onPct(Math.round(e.loaded / e.total * 100));
+    };
+    x.onload = () => {
+      let j = {};
+      try { j = JSON.parse(x.responseText); } catch { /* 본문이 없을 수도 */ }
+      if (x.status >= 200 && x.status < 300) ok(j);
+      else no(new Error(j.error || `올리지 못했습니다 (${x.status})`));
+    };
+    x.onerror = () => no(new Error("연결이 끊겼습니다"));
+    x.send(file);
+  });
+}
+
+/* 묶음 하나만 붙인다 — 그 묶음의 씬 범위만 p4 에 넘긴다. */
+document.addEventListener("click", async (e) => {
+  const del = e.target.closest("[data-del]");
+  if (del) {
+    if (!confirm(`${del.dataset.del} 을 지웁니다. 계속할까요?`)) return;
+    try {
+      await post("/api/bundle-drop-del", { task: task(),
+        bundle: del.dataset.bundleDir, name: del.dataset.del });
+      toast("지웠습니다");
+      loadBundles();
+    } catch (err) { toast(err.message, true); }
+    return;
+  }
+  const at = e.target.closest("[data-attach]");
+  if (at) {
+    const b = (BUNDLES.bundles || []).find((x) => String(x.no) === at.dataset.attach);
+    if (!b) return;
+    const nos = b.scenes || [];
+    runScenes("p4", `${nos[0]}-${nos[nos.length - 1]}`, at);
+  }
+});
 
 /* ── 묶음 ───────────────────────────────────────────────────── */
 

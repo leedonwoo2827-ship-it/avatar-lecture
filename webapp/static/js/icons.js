@@ -41,6 +41,14 @@ const P = {
   target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>',
   printer: '<path d="M7 9V3h10v6"/><path d="M7 19H5a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M7 15h10v6H7z"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  // 「실행」 단추가 처음부터 이 이름을 불렀는데 그림이 없었다. 모르는 이름은
+  // hydrateIcons 가 조용히 지우므로 오류 없이 아이콘만 사라진다.
+  play: '<path d="M8 5.5v13l11-6.5z"/>',
+  // 아래 넷도 화면이 불렀는데 그림이 없었다 — 접기 단추와 펼치기 화살표다
+  arrowRight: '<path d="M5 12h14"/><path d="M13 6l6 6-6 6"/>',
+  chevronDown: '<path d="M6 9l6 6 6-6"/>',
+  panelLeft: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>',
+  panelRight: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/>',
 };
 
 export function hydrateIcons(root = document) {

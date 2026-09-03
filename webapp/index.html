@@ -36,6 +36,14 @@
     </div>
 
     <div class="rail-scroll">
+      <!-- 지금 보고 있는 강의. 누르면 00 재료의 강의 목록으로 간다.
+           이 표시가 없으면 없는 폴더를 보면서도 그것을 모른다. -->
+      <button class="rail-lec" id="rail-lec" type="button"
+              title="강의 바꾸기 — 00 재료로 갑니다">
+        <span class="rail-lec-k">강의</span>
+        <span class="rail-lec-v" id="rail-lec-v">…</span>
+        <span data-icon="edit" data-icon-size="13"></span>
+      </button>
       <button class="btn-ink rail-all" id="btn-all" type="button">
         <span data-icon="wand" data-icon-size="15"></span><span>전부 만들기</span>
       </button>

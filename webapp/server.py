@@ -188,6 +188,23 @@ def run_one_step(step: str, opts: dict) -> None:
 
 # ══ 상태 읽기 ═══════════════════════════════════════════════════════════════
 
+BUNDLE_RE = re.compile(r"^bundle[0-9]{2}$")
+# 파일 이름에 쓰면 안 되는 글자 — 윈도우가 막는 것 + 제어 문자.
+# ★ 정규식 문자 집합에 넣지 않는다. 역슬래시가 닫는 «]» 를 이스케이프해
+#   «unterminated character set» 으로 죽는다. 집합 하나로 두면 그 함정이 없다.
+_NAME_BAD = set('<>:"/|?*' + chr(92)) | {chr(c) for c in range(32)}
+
+
+def safe_name(raw: str) -> str:
+    r"""파일 이름에서 알맹이만 남긴다.
+
+    보내는 쪽을 믿지 않는다 — 경로가 섞여 오면 묶음 폴더 밖에 쓸 수 있게
+    된다. 그래서 폴더 부분을 떼고(`Path.name`) 못 쓰는 글자를 바꾼다.
+    """
+    got = "".join("_" if c in _NAME_BAD else c for c in Path(raw).name)
+    return got.strip().lstrip(".")
+
+
 AUDIO_EXTS = (".mp3", ".wav", ".m4a", ".aac")
 VIDEO_EXTS = (".webm", ".mp4", ".mov", ".mkv", ".m4v")
 _dur_seen: dict[tuple[str, int, int], float] = {}
@@ -744,9 +761,69 @@ class Handler(BaseHTTPRequestHandler):
         return self._send(404, b"not found", "text/plain; charset=utf-8")
 
     # ── POST ──
+    def _take_upload(self, q: dict) -> None:
+        r"""받은 영상을 묶음 폴더에 앉힌다 — 본문이 **파일 바이트 그대로**다.
+
+        multipart 를 안 쓴다. 표준 라이브러리로 경계를 파싱하는 코드는 길고
+        틀리기 쉽다. 이름은 쿼리로 오고 본문에는 파일만 온다. 브라우저 쪽은
+        `xhr.send(file)` 한 줄이고, 올리는 진행률도 그대로 나온다.
+
+        ★ 1MB 씩 끊어 **디스크로 흘려보낸다.** 한 번에 read() 하면 100MB 짜리가
+          메모리에 통째로 올라온다. 다 받기 전에는 `.part` 이름으로 두어,
+          반쯤 받은 파일을 p4 가 온전한 영상으로 오해하지 않게 한다.
+        """
+        task = (q.get("task") or [""])[0]
+        bdir = (q.get("bundle") or [""])[0]
+        fname = (q.get("name") or [""])[0]
+        up = scene_dir(task, "upload")
+        if up is None:
+            return self._json({"error": "그 강의의 05 폴더가 없습니다"}, 404)
+        if not BUNDLE_RE.match(bdir):
+            return self._json({"error": "묶음 이름이 수상합니다"}, 400)
+        safe = safe_name(fname)
+        if not safe or Path(safe).suffix.lower() not in VIDEO_EXTS:
+            return self._json(
+                {"error": "영상 파일만 받습니다 (" + ", ".join(VIDEO_EXTS) + ")"}, 400)
+        n = int(self.headers.get("Content-Length") or 0)
+        if n <= 0:
+            return self._json({"error": "빈 파일입니다"}, 400)
+        if n > 4 * 1024 ** 3:
+            return self._json({"error": "4GB 를 넘습니다"}, 413)
+
+        dest = up / bdir
+        dest.mkdir(parents=True, exist_ok=True)
+        tmp = dest / (safe + ".part")
+        try:
+            left = n
+            with tmp.open("wb") as f:
+                while left > 0:
+                    chunk = self.rfile.read(min(1 << 20, left))
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    left -= len(chunk)
+            if left > 0:
+                tmp.unlink(missing_ok=True)
+                return self._json({"error": "받는 중에 끊겼습니다"}, 400)
+            tmp.replace(dest / safe)
+        except OSError as e:
+            tmp.unlink(missing_ok=True)
+            return self._json({"error": "쓰지 못했습니다: " + str(e)}, 500)
+        got = dest / safe
+        return self._json({"ok": True, "name": safe, "path": str(got),
+                           "sec": round(media_dur(got), 1),
+                           "mb": round(n / 1_048_576, 1)})
+
     def do_POST(self) -> None:
         u = urlparse(self.path)
-        path, body = u.path, self._body()
+        path = u.path
+
+        # ★ 파일 올리기가 맨 앞이다. 아래 _body() 는 본문을 JSON 으로 통째
+        #   읽으므로, 영상이 오면 100MB 를 메모리에 담아 놓고 버린다.
+        if path == "/api/bundle-drop":
+            return self._take_upload(parse_qs(u.query))
+
+        body = self._body()
 
         if path == "/api/heygen-key":
             # 키는 파일(heygen.local.json)에만 넣는다. 되돌려 주는 건 status() 뿐이라
@@ -858,6 +935,22 @@ class Handler(BaseHTTPRequestHandler):
             if not open_claude_console(act):
                 return self._json({"error": "그 동작을 할 수 없습니다 "
                                             "(claude 실행 파일을 찾지 못했을 수 있습니다)"}, 400)
+            return self._json({"ok": True})
+
+        if path == "/api/bundle-drop-del":
+            # 잘못 넣은 것을 화면에서 뺀다. 묶음 폴더 안의 영상만 지운다 —
+            # 올릴음성.mp3 나 자막은 이 길로 못 지운다.
+            name = body.get("task") or ""
+            bdir = body.get("bundle") or ""
+            fname = Path(str(body.get("name") or "")).name
+            up = scene_dir(name, "upload")
+            if up is None or not BUNDLE_RE.match(bdir):
+                return self._json({"error": "자리를 찾지 못했습니다"}, 404)
+            f = (up / bdir / fname).resolve()
+            if ((up / bdir).resolve() != f.parent
+                    or f.suffix.lower() not in VIDEO_EXTS or not f.is_file()):
+                return self._json({"error": "그 자리의 영상이 아닙니다"}, 400)
+            f.unlink()
             return self._json({"ok": True})
 
         if path == "/api/open":
