@@ -903,3 +903,60 @@ body.rail-off .conn-text { display: none; }
 .rail-lec-v { flex: 1 1 auto; min-width: 0; font-size: 13px; font-weight: 700;
   color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rail-lec .i { flex: none; color: var(--text-3); }
+
+/* ── 09 «어느 묶음을 굽나» ────────────────────────────────
+   묶음이 고르는 단위다. 한 줄에 «묶음 · 씬 범위 · 길이 · 아바타 몇/몇» 이
+   한 눈에 들어와야, 다섯 줄을 훑고 바로 실행을 누른다. */
+.pick { display: grid; gap: 2px; margin: 4px 0 12px; }
+.pick-row { display: flex; align-items: center; gap: 10px; cursor: pointer;
+  padding: 7px 10px; border: 1px solid transparent; border-radius: 8px;
+  font-size: 13px; }
+.pick-row:hover { background: var(--hover); }
+.pick-row input { width: 15px; height: 15px; accent-color: var(--brand);
+  cursor: pointer; flex: none; }
+.pick-row b { flex: none; min-width: 58px; }
+.pick-row.off { color: var(--text-3); cursor: default; }
+.pick-row.off:hover { background: none; }
+.pick-row.off input { cursor: not-allowed; }
+.pick-all { border-bottom: 1px solid var(--line); border-radius: 8px 8px 0 0; }
+.pick-say, .pick-st i { color: var(--text-3); font-style: normal; font-size: 12px; }
+.pick-sc { flex: none; color: var(--text-2); }
+.pick-sec { flex: none; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.pick-st { margin-left: auto; color: var(--text-2); }
+.pick-sum { padding: 7px 10px 0; font-size: 12.5px; color: var(--text-2);
+  border-top: 1px solid var(--line); margin-top: 2px; }
+
+/* ── 완성본 목록 ─────────────────────────────────────────
+   구울 때마다 쌓인다. 줄을 누르면 위 재생기에 그것이 올라온다. */
+.build-list { display: grid; gap: 2px; margin-top: 9px; }
+.build { display: flex; align-items: baseline; gap: 10px; width: 100%;
+  padding: 6px 9px; border: 1px solid transparent; border-radius: 7px;
+  background: none; font: inherit; font-size: 12.5px; color: inherit;
+  text-align: left; cursor: pointer; }
+.build:hover { background: var(--hover); }
+.build.on { border-color: var(--brand); background: var(--brand-wash); }
+.build-n { flex: 1 1 auto; min-width: 0; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+  font-family: ui-monospace, Consolas, monospace; }
+.build-s { flex: none; color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+/* 실행 단추 옆의 «얼마나 걸리나». 도는 중에는 색이 살고, 끝나면 가라앉는다 —
+   끝난 뒤에도 남겨 둔다. «저건 4분 걸리는 일» 이 다음 번 예상이 된다. */
+.run-sec { margin-left: auto; font-size: 12.5px; color: var(--ink-3);
+  font-variant-numeric: tabular-nums; }
+.run-sec.on { color: var(--brand); font-weight: 700; }
+
+/* ── 읽기 모드 ───────────────────────────────────────────
+   사내에 열어 둔 창(lan-run.bat). 서버가 POST 를 전부 막으므로 화면도 잠근다.
+   ★ **CSS 로 잠근다.** 묶음·완성본 목록은 나중에 그려지는데, 그릴 때마다
+     단추를 하나씩 disabled 로 만들면 새 단추를 낼 때 반드시 빠뜨린다. */
+.ro-bar { margin: 0 0 18px; padding: 10px 14px; border-radius: 10px;
+  background: var(--warn-wash); border: 1px solid var(--warn);
+  font-size: 13px; color: var(--ink); }
+body.readonly .btn-ink,
+body.readonly [data-open],
+body.readonly [data-attach],
+body.readonly [data-del],
+body.readonly .drop-say,
+body.readonly .pick-row input { pointer-events: none; opacity: .4; }
+.run-dim { color: var(--ink-3); }

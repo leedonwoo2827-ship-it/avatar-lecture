@@ -34,6 +34,7 @@ import argparse
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -598,6 +599,12 @@ def main() -> None:
                     help="contain=안 자르고 맞춤(기본) · cover=잘라서 꽉 채움")
     ap.add_argument("--suffix", default="", help="산출 파일 이름 뒤에 붙일 말")
     ap.add_argument("--join", action="store_true", help="다 만든 뒤 한 편으로 잇는다")
+    # ★ «둘 다» 가 자기를 두 번 부를 때 안쪽 판에 붙인다. 안쪽이 «완료» 를
+    #   말하면 아직 여백형이 남았는데 사람이 다 끝난 줄 안다 — 실제로 그렇게
+    #   읽고 «완료에요?» 하고 물었다 (2026-09-04). 끝났다는 말은 **한 번만**
+    #   나와야 한다.
+    ap.add_argument("--inner", action="store_true",
+                    help="«둘 다» 의 안쪽 판 — 끝맺음 줄을 찍지 않는다")
     a = ap.parse_args()
 
     # both — 나를 두 번 부른다. 배치마다 필터 사슬이 통째로 다르므로 한 함수
@@ -605,16 +612,20 @@ def main() -> None:
     if a.style == "both":
         base = list(sys.argv[1:])
         for one in BOTH:
-            args = [one if x == "both" else x for x in base]
-            print("")
-            print(f"══ {STYLE_NAME[one]} ({one}) ══")
+            args = [one if x == "both" else x for x in base] + ["--inner"]
+            # ★ flush 가 없으면 이 머리글이 자식 출력보다 **뒤에** 찍힌다.
+            #   부모 stdout 은 파이프라 버퍼에 남고 자식은 같은 파이프로 바로
+            #   쓰기 때문이다. 그래서 기록이 «완료 → ══ 전면샷 ══» 순으로
+            #   거꾸로 보였다 (2026-09-04 실측).
+            print("", flush=True)
+            print(f"══ {STYLE_NAME[one]} ({one}) ══", flush=True)
             r = subprocess.run([sys.executable, str(Path(__file__).resolve())] + args)
             if r.returncode != 0:
                 die(f"{STYLE_NAME[one]} 에서 멈췄습니다")
         print("")
-        print("두 배치를 다 구웠습니다 — 골라 쓰고 아닌 쪽은 지우면 됩니다:")
-        for one in BOTH:
-            print(f"  {STYLE_NAME[one]:6s}  09/all-{one}.mp4")
+        # 이름은 위 두 번의 출력에 이미 찍혔다. 여기서 다시 적으면 옛 이름
+        # (`all-full.mp4`)을 말하게 된다 — 이제 앞에 «연월일-시분» 이 붙는다.
+        print("두 배치를 다 구웠습니다 — 09 폴더에서 골라 쓰고 아닌 쪽은 지우면 됩니다.")
         return
 
     # --style 은 배치·정렬·산출이름을 한꺼번에 정한다. 화면은 이것만 넘긴다.
@@ -834,7 +845,18 @@ def main() -> None:
         q = chr(39)
         lst.write_text("\n".join("file " + q + p.resolve().as_posix() + q for p in made) + "\n",
                        encoding="utf-8")
-        joined = out_dir / f"all{a.suffix}.mp4"
+        # ★ **덮어쓰지 않고 쌓는다.** 이름 앞이 «연월일-시분» 이라 새로 구운
+        #   것이 목록 맨 위에 온다. 한 강의를 여러 번 굽는 것이 정상이다 —
+        #   묶음이 하나씩 오고, 스타일을 바꿔 보고, 자막을 고쳐 다시 굽는다.
+        #   그때마다 앞 것이 사라지면 «아까 그게 나았는데» 를 되돌릴 길이 없다.
+        # ★ 뒤쪽 이름은 사람이 고쳐도 된다. 화면은 09 폴더를 **읽어서** 목록을
+        #   만들지, 이름 규칙으로 찾지 않는다 (`scene01…` 만 빼고 다 완성본이다).
+        stamp = time.strftime("%y%m%d-%H%M")
+        joined = out_dir / f"{stamp}-all{a.suffix}.mp4"
+        nth = 2
+        while joined.exists():          # 같은 분에 두 번 구웠다
+            joined = out_dir / f"{stamp}-all{a.suffix}-{nth}.mp4"
+            nth += 1
         with Ticker("한 편으로 잇는 중"):
             # ★ -map 0 이 없으면 ffmpeg 이 스트림을 종류별로 하나씩만 골라
             #   **자막 트랙을 버린다**(2026-09-02 실측: soft 로 구운 8개를 이었더니
@@ -853,7 +875,8 @@ def main() -> None:
             save_json(P.meta, meta)
         print(f"  {joined.name}  ({mmss(sum(float(r['voice_dur']) for r in rows))})")
 
-    print(f"\n완료 — {out_dir}")
+    if not a.inner:
+        print(f"\n완료 — {out_dir}")
 
 
 if __name__ == "__main__":

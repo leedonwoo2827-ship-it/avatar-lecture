@@ -261,6 +261,19 @@ def bg_bbox(ff: str, src: Path, w: int, h: int, dur: float, *,
 
 # ══ drop — 웹에서 내려받은 영상 붙이기 ═══════════════════════════════════════
 
+# 이름 안의 «씬» 토막 — `scene02` · `scene02-07` · `씬3`. 묶음 번호를 찾을
+# 때는 이것부터 지운다. 안 지우면 씬 번호가 묶음 번호로 읽힌다.
+SCENE_TOK_RE = re.compile(r"(?:scene|씬)\s*0*\d+(?:\s*[-~–—]\s*0*\d+)?", re.I)
+# 이름이 스스로 «몇 번 묶음» 이라고 말하는가
+BUNDLE_TOK_RE = re.compile(r"(?:bundle|묶음)\s*0*(\d+)", re.I)
+
+
+def _other_bundle(stem: str, bno: int) -> bool:
+    """이름이 **다른 묶음**을 말하는가. 말하면 그 영상은 이 묶음 것이 아니다."""
+    m = BUNDLE_TOK_RE.search(stem)
+    return m is not None and int(m.group(1)) != bno
+
+
 def find_bundle_clip(src: Path, bno: int, bdir_name: str) -> Path | None:
     r"""묶음 번호에 맞는 영상을 찾는다.
 
@@ -292,11 +305,20 @@ def find_bundle_clip(src: Path, bno: int, bdir_name: str) -> Path | None:
     for p in vids:
         if want in p.stem.lower():
             return p
-    for p in vids:
-        if re.search(rf"(^|\D){bno:02d}(\D|$)", p.stem) or \
-           re.search(rf"(^|\D){bno}(\D|$)", p.stem):
+
+    # ★ 이름이 **다른 묶음**을 말하면 아래 두 길에서 아예 뺀다. 그리고 숫자를
+    #   보기 전에 «씬» 토큰을 지운다.
+    #   `001-bundle01-scene02-07…` 을 묶음 2 로 잡은 적이 있다 — 이름 안의
+    #   «scene02» 를 묶음 번호로 읽었다. 그 영상이 묶음 2(8분 36초)에 통째로
+    #   붙어 씬 8~14 가 0.86배로 뭉개졌고, 화면은 «전부 붙었습니다» 라고 했다
+    #   (2026-09-04 실측). 오류 없이 조용히 틀리는 자리라 더 나쁘다.
+    rest = [p for p in vids if not _other_bundle(p.stem, bno)]
+    for p in rest:
+        stem = SCENE_TOK_RE.sub(" ", p.stem)
+        if re.search(rf"(^|\D){bno:02d}(\D|$)", stem) or \
+           re.search(rf"(^|\D){bno}(\D|$)", stem):
             return p
-    return vids[0] if len(vids) == 1 else None
+    return rest[0] if len(rest) == 1 else None
 
 
 SPAN_RE = re.compile(r"(?:scene|씬|s)\s*0*(\d+)\s*[-~–—]\s*0*(\d+)", re.I)

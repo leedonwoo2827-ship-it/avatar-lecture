@@ -31,6 +31,14 @@ from scripts.common import LECTURES, ROOT, load_json, local_config, scene_paths
 from scripts.cues import parse_srt, to_srt, Cue
 
 PORT = 6326
+# ★ 어디에 열 것인가. 기본은 **내 컴퓨터만**(127.0.0.1)이다. 사내 다른 자리에서
+#   보게 하려면 lan-run.bat 이 0.0.0.0 으로 연다 — 그때는 반드시 읽기 모드다.
+HOST = "127.0.0.1"
+# ★ 읽기 모드. **돌리는 길(POST)을 전부 막는다.** 화면 하나를 여럿이 보는데
+#   누구나 「전부 만들기」를 누를 수 있으면, 남이 보는 사이에 씬이 갈리고
+#   자막이 덮인다. 무엇이 어디까지 됐는지 «보는» 것과 «돌리는» 것은 다른 일이다.
+#   막는 자리를 do_POST 한 곳으로 모은다 — 길이 늘 때마다 빠뜨리지 않게.
+READONLY = False
 HERE = Path(__file__).resolve().parent
 # .venv 가 있으면 그것을, 없으면 지금 돌고 있는 파이썬을 쓴다.
 # 씬 만들기(p1~p5)는 표준 라이브러리와 ffmpeg 만 쓰므로 setup.bat 없이도 돈다 —
@@ -77,7 +85,25 @@ class Job:
         # 이번에 도는 단계 목록 — 전부 만들기면 다섯, 단계 하나면 하나다.
         self.kind: str = ""
         self.steps: list[dict] = []
+        # ★ **언제 시작했나.** 씬 하나 굽는 데 20초, 일곱 씬 두 배치면 5분이다.
+        #   그 사이 화면이 «돌고 있습니다» 만 말하면 사람은 멈춘 건지 도는 건지
+        #   모르고 기록창의 흐르는 글자를 들여다본다. 흐른 시간이 보이면 그럴
+        #   일이 없다 — 끝난 뒤에는 «얼마나 걸렸나» 가 다음 번 예상이 된다.
+        self.t0: float = 0.0
+        self.t1: float = 0.0
         self._lock = threading.Lock()
+
+    def start(self) -> None:
+        self.t0, self.t1 = time.time(), 0.0
+
+    def stop(self) -> None:
+        self.t1 = time.time()
+
+    @property
+    def elapsed(self) -> float:
+        if not self.t0:
+            return 0.0
+        return (self.t1 or time.time()) - self.t0
 
     def log(self, line: str) -> None:
         with self._lock:
@@ -89,7 +115,8 @@ class Job:
                     "step": self.step, "running": self.running,
                     "failed": self.failed, "ws": self.ws,
                     "lang": self.lang, "sub_lang": self.sub_lang,
-                    "kind": self.kind, "steps": self.steps}
+                    "kind": self.kind, "steps": self.steps,
+                    "sec": round(self.elapsed, 1)}
 
 
 JOB = Job()
@@ -157,13 +184,23 @@ def scene_args(o: dict) -> dict[str, list[str]]:
         # 자세가 리셋되어 이어붙인 자리가 튀므로 묶어 넣는다.
         "p3b": ["scripts/p3b_voicepack.py", "--task", task,
                 "--max-sec", str(o["bundle_max_sec"]), "--pack", o["bundle_pack"]],
-        "p4": ["scripts/p4_avatar.py", "--task", task, "--engine", o["avatar_engine"]]
+        # ★ **--scenes 를 반드시 넘긴다.** 「이 묶음 붙이기」는 그 묶음의 씬
+        #   범위만 보내는데(main.js 의 runScenes), 여기서 빠뜨리면 p4 가 서른두
+        #   씬을 전부 돈다. 그러면 영상이 안 온 묶음까지 «비슷한 이름» 을 찾아
+        #   남의 묶음 영상을 갖다 붙인다 — 묶음 1 을 붙였는데 묶음 2 가 «전부
+        #   붙었습니다» 로 바뀌었다 (2026-09-04 실측).
+        "p4": ["scripts/p4_avatar.py", "--task", task, "--engine", o["avatar_engine"],
+               "--scenes", o["scenes"]]
               # ★ avatar_src 가 **비어 있으면 --from 을 아예 안 붙인다.** 빈 값으로
               #   넘기면 argparse 가 빈 경로를 받아 죽는다. 안 붙이면 p4 가 묶음
               #   폴더(05/bundleNN/)를 본다 — 그게 기본 길이다.
               + (["--from", o["avatar_src"]]
                  if (o["avatar_engine"] == "drop" and o["avatar_src"]) else []),
+        # ★ p4 와 같은 이유로 --scenes 를 넘긴다. 09 화면이 «어느 묶음을 굽나»
+        #   를 체크박스로 고르고 그 씬 범위를 보낸다 — 여기서 빠뜨리면 고른
+        #   것과 구운 것이 어긋난다.
         "p5": ["scripts/p5_compose.py", "--task", task, "--style", o["style"],
+               "--scenes", o["scenes"],
                "--subs", o["subs_mode"], "--avatar-h", str(o["avatar_h"]),
                "--avatar-vary", str(o["avatar_vary"]),
                "--avatar-sink", str(o["avatar_sink"]),
@@ -181,6 +218,7 @@ def run_scene_pipeline(opts: dict) -> None:
     """
     JOB.lines.clear()
     JOB.running, JOB.failed, JOB.ws = True, False, ""
+    JOB.start()
     JOB.lang, JOB.sub_lang = "uz", opts["sub_lang"]
     JOB.kind = "scene"
     JOB.steps = [{"key": k, "label": l} for k, l in ALL_STEPS]
@@ -211,6 +249,7 @@ def run_scene_pipeline(opts: dict) -> None:
         JOB.log(f"      HeyGen 에 올리고, 받은 영상을 그 칸에 끌어다 놓으세요.")
         JOB.log(f"      묶음 폴더 — {up}")
     finally:
+        JOB.stop()
         JOB.running = False
 
 
@@ -222,6 +261,7 @@ def run_one_step(step: str, opts: dict) -> None:
     """
     JOB.lines.clear()
     JOB.running, JOB.failed, JOB.ws = True, False, ""
+    JOB.start()
     JOB.kind = "scene"
     JOB.steps = [{"key": k, "label": l} for k, l in SCENE_STEPS if k == step]
     try:
@@ -241,6 +281,7 @@ def run_one_step(step: str, opts: dict) -> None:
         JOB.ws = opts["task"]
         JOB.step = "done"
     finally:
+        JOB.stop()
         JOB.running = False
 
 
@@ -351,8 +392,23 @@ def scene_rows() -> list[dict]:
         if joined is None or not joined.is_file():
             found = sorted(pv.glob("all*.mp4")) if pv.is_dir() else []
             joined = found[-1] if found else (pv / "all.mp4")
+        # ★ 완성본 목록 — **폴더를 읽는다.** scenes.json 에 적힌 이름만 믿으면
+        #   사람이 파일 이름을 고치는 순간 목록에서 사라진다. 이름 앞의
+        #   «연월일-시분» 만 p5 가 붙이고, 뒤는 사람 것이다.
+        #   `scene01-full.mp4` 같은 씬별 검수본은 뺀다 — 그건 씬 그리드가 맡는다.
+        builds = []
+        if pv.is_dir():
+            for x in sorted(pv.glob("*.mp4"),
+                            key=lambda f: f.stat().st_mtime, reverse=True)[:40]:
+                if re.match(r"^scene\d", x.stem, re.I):
+                    continue
+                st = x.stat()
+                builds.append({"name": x.name, "mb": round(st.st_size / 1e6, 1),
+                               "at": time.strftime("%y-%m-%d %H:%M",
+                                                   time.localtime(st.st_mtime))})
         rows.append({
             "task": d.name, "path": str(d),
+            "builds": builds,
             "sub_lang": meta.get("sub_lang", ""),
             "langs_have": have,                   # 01/subs 에 있는 언어
             "langs_done": done,                   # 03 에 맞춰 둔 언어
@@ -734,6 +790,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/state":
             return self._json({"sceneSteps": [{"key": k, "label": l} for k, l in SCENE_STEPS],
                                "scenes": scene_rows(),
+                               "readonly": READONLY,
                                "sceneDefaults": scene_defaults(),
                                # 어느 언어가 기본인지도 저장소에 안 남긴다 —
                                # config.local.json 이 정한다.
@@ -876,6 +933,12 @@ class Handler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         path = u.path
 
+        # ★ 읽기 모드에서는 **여기서 전부 돌려보낸다.** 아래 길이 스물이라
+        #   한 길씩 막으면 새 길을 낼 때 반드시 빠뜨린다.
+        if READONLY:
+            return self._json({"error": "읽기 모드입니다 — 보기만 됩니다. "
+                                        "돌리려면 그 컴퓨터에서 run.bat 을 쓰세요."}, 403)
+
         # ★ 파일 올리기가 맨 앞이다. 아래 _body() 는 본문을 JSON 으로 통째
         #   읽으므로, 영상이 오면 100MB 를 메모리에 담아 놓고 버린다.
         if path == "/api/bundle-drop":
@@ -920,26 +983,22 @@ class Handler(BaseHTTPRequestHandler):
             cfg = local_config()
             opts = {
                 "task": (body.get("task") or "lecture01").strip(),
-                "scenes": body.get("scenes") or "1-8",
-                "style": body.get("style") or "full",
-                "voice_engine": body.get("voice_engine") or "source",
-                "avatar_engine": body.get("avatar_engine") or "stub",
-                # drop = HeyGen 웹에서 렌더해 내려받은 영상이 있는 폴더
-                "avatar_src": body.get("avatar_src") or "",
-                "bundle_max_sec": body.get("bundle_max_sec") or "590",
+                # ★ **기본값은 RUN_DEFAULTS 한 곳에서만 정한다.** 여기에 또
+                #   적어 두면 두 표가 조용히 갈린다 — 실제로 셋이 갈라져 있었다:
+                #   scenes «1-8»(32씬 강의가 8씬만 돌 뻔했다) · avatar_engine
+                #   «stub»(임시 아바타) · avatar_vary «40»(씬마다 좌우로 흔들기).
+                #   화면이 값을 보내면 그쪽이 이기는 것은 그대로다.
+                **{k: (body.get(k) or RUN_DEFAULTS[k]) for k in (
+                    "scenes", "style", "voice_engine", "avatar_engine",
+                    # avatar_src 는 **비어 있는 것이 뜻**이다 — 묶음 폴더를 보라.
+                    "avatar_src", "bundle_max_sec", "script", "subs", "slides",
+                    "source", "subs_mode", "avatar_h", "avatar_vary",
+                    "avatar_rotate", "avatar_sink", "slide_fit")},
                 "bundle_pack": ("fill" if body.get("bundle_pack") == "fill" else "even"),
-                "script": body.get("script") or "",
-                "subs": body.get("subs") or "",
-                "slides": body.get("slides") or "",
-                "source": body.get("source") or "",
+                # 언어 둘은 config.local.json 이 정한다 — 강의마다 다르다
                 "sub_lang": body.get("sub_lang") or cfg["sub_lang"],
                 "script_lang": body.get("script_lang") or cfg["audio_lang"],
                 "retranslate": bool(body.get("retranslate")),
-                "subs_mode": body.get("subs_mode") or "burn",
-                "avatar_h": body.get("avatar_h") or "0.85",
-                "avatar_vary": body.get("avatar_vary") or "40",
-                "avatar_rotate": body.get("avatar_rotate") or "0",
-                "slide_fit": body.get("slide_fit") or "contain",
             }
             if not re.match(r"^[0-9A-Za-z가-힣_.-]{1,40}$", opts["task"]):
                 return self._json({"error": "작업 이름에 쓸 수 없는 글자가 있습니다"}, 400)
@@ -1038,20 +1097,49 @@ class Handler(BaseHTTPRequestHandler):
         return self._json({"error": "그런 자리는 없습니다"}, 404)
 
 
+def lan_ip() -> str:
+    """사내에서 부를 주소. 밖으로 나가는 소켓을 열어 **내 쪽 주소**만 읽는다 —
+    실제로 보내지는 않으므로 인터넷이 없어도 된다."""
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))
+        return s.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+    finally:
+        s.close()
+
+
 def main() -> None:
+    global HOST, READONLY
+    # ★ 인자를 두 개만 받는다. 그 이상은 .bat 이 아니라 코드가 정할 일이다.
+    argv = sys.argv[1:]
+    if "--lan" in argv:
+        # **--lan 은 읽기 모드를 데리고 다닌다.** 남의 컴퓨터에서 「전부 만들기」를
+        # 누를 수 있는 창을 사내에 열어 두는 것은 실수로도 하면 안 된다.
+        HOST, READONLY = "0.0.0.0", True
+    if "--readonly" in argv:
+        READONLY = True
+
     # .venv 가 없어도 연다 — 씬 만들기(p1~p5)는 표준 라이브러리와 ffmpeg 만 쓴다.
     # s1~s7(전사)은 faster-whisper 가 있어야 하므로 그때는 안내만 남긴다.
     if not _VENV.is_file():
         print("  .venv 가 없어 지금 이 파이썬으로 돕니다 — 씬 만들기는 그대로 됩니다.")
         print("  전사(s1~s7)까지 쓰려면 setup.bat 을 돌리세요.")
     try:
-        srv = Server(("127.0.0.1", PORT), Handler)
+        srv = Server((HOST, PORT), Handler)
     except OSError:
         raise SystemExit(
             f"{PORT} 번을 이미 누가 쓰고 있습니다 — 먼저 뜬 창을 닫고 다시 여세요.")
     print("=" * 60)
     print("  Avatar Lecture  —  http://127.0.0.1:%d" % PORT)
+    if HOST != "127.0.0.1":
+        print("  사내에서는  —  http://%s:%d" % (lan_ip(), PORT))
     print("=" * 60)
+    if READONLY:
+        print("  ★ 읽기 모드입니다 — 보기만 됩니다. 돌리는 단추는 잠깁니다.")
+        print("    (처음 열 때 윈도 방화벽이 물으면 «사설 네트워크» 만 허용하세요)")
     print("  창을 닫거나 Ctrl+C 를 누르면 꺼집니다.")
     try:
         srv.serve_forever()

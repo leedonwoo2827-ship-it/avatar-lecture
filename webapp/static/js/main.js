@@ -116,7 +116,13 @@ function stepState(page) {
     p4: j.scenes.filter((s) => s.avatar).length,
     p5: j.scenes.filter((s) => s.preview).length,
   }[page] || 0;
-  return got >= n ? "done" : got > 0 ? "part" : "";
+  // ★ **09 만 분모가 다르다.** 서른둘 중 일곱만 아바타가 왔으면 나머지 스물다섯은
+  //   «아직 안 구운» 것이 아니라 **구울 수 없는** 것이다. 32 로 나누면 단추가
+  //   영원히 「이어서」에 머물러, 다 구워 놓고도 «전부 다시 굽기» 를 못 한다.
+  //   아바타가 온 만큼을 «전부» 로 본다 — 오는 대로 분모가 늘어난다.
+  const need = page === "p5" ? j.scenes.filter((s) => s.avatar).length : n;
+  if (!need) return "";
+  return got >= need ? "done" : got > 0 ? "part" : "";
 }
 
 /* 지금 보고 있는 강의를 사이드바에 적는다. 씬 개수까지 같이 적어, 그 강의가
@@ -166,13 +172,20 @@ function route() {
   if (to === "p3") loadSubs();
   if (to === "p3b") loadBundles();      // ★ 강의를 갈아탄 뒤에도 그 강의의 묶음을 본다
   if (to === "p4") { drawScenes("#p4-out", "p4"); loadBundles(); }
-  if (to === "p5") { drawDone(); drawScenes("#p5-out", "p5"); }
+  // ★ 09 도 묶음을 읽는다 — 맨 위 «어느 묶음을 굽나» 가 이걸 본다
+  if (to === "p5") { drawDone(); drawScenes("#p5-out", "p5"); loadBundles(); }
   drawNotes();
 }
 
 /* ── 상태 읽어 오기 ────────────────────────────────────────── */
 async function refresh() {
   STATE = await api("/api/state");
+  // 읽기 모드 — 사내에 열어 둔 창(lan-run.bat). 서버가 POST 를 전부 막으므로
+  // 화면도 그에 맞춰 잠근다. 잠그는 일은 CSS 한 줄이 맡는다 — 목록이 나중에
+  // 그려져도(묶음·완성본) 새 단추까지 같이 잠긴다.
+  document.body.classList.toggle("readonly", !!STATE.readonly);
+  const roBar = $("#ro-bar");
+  if (roBar) roBar.hidden = !STATE.readonly;
   fillPaths();
   renderSteps();
   drawJobs();
@@ -315,7 +328,13 @@ function drawNotes() {
     + " " + (sm === "burn" ? "자막은 <b>픽셀에 구워</b> 어디서나 보입니다."
       : sm === "soft" ? "자막은 <b>끌 수 있는 트랙</b>입니다 — 플레이어가 안 켜면 안 보입니다."
       : "자막은 영상에 안 넣고 <b>srt 로만</b> 넘깁니다."));
-  set("#p5-note", j ? `구운 씬 <b>${j.scenes.filter((s) => s.preview).length}/${n}</b>` : "");
+  // 분모는 «아바타가 온 씬» 이다 (stepState 와 같은 셈). 전체와 다르면 그것도 적어
+  // 준다 — «7/7 인데 왜 32씬 강의가 다 안 나오지» 를 화면이 먼저 답해야 한다.
+  const nAv = j ? j.scenes.filter((s) => s.avatar).length : 0;
+  set("#p5-note", j
+    ? `구운 씬 <b>${j.scenes.filter((s) => s.preview).length}/${nAv}</b>`
+      + (nAv < n ? ` <span class="run-dim">아바타 온 씬만 굽습니다 · 전체 ${n}</span>` : "")
+    : "");
 }
 for (const id of ["#sc-voice", "#sc-avatar", "#sc-submode", "#sc-fit"])
   $(id).onchange = () => { drawNotes(); drawAvatar(); };
@@ -467,12 +486,41 @@ $("#lang-find").oninput = () => {
 };
 
 /* ── 돌리기 ────────────────────────────────────────────────── */
-function drawProgress(cur, failed, running, steps) {
+function drawProgress(cur, failed, running, steps, sec) {
   const host = $("#dock-now");
   if (!host) return;
   const now = (steps || []).find((s) => s.key === cur);
-  host.textContent = !running && cur === "done" ? "끝났습니다"
+  const what = !running && cur === "done" ? "끝났습니다"
     : failed ? "멈췄습니다" : now ? now.label : "";
+  // 기록창을 접어 두어도 머리에 시간이 보인다 — 여기가 «도는 중» 을 보는 자리다
+  host.textContent = what + (sec ? `  ${hms(sec)}` : "");
+}
+
+/* ── 얼마나 걸리나 ────────────────────────────────────────────────────────
+ * ★ 씬 하나 굽는 데 20초, 일곱 씬을 두 배치로 구우면 5분이다. 그동안 화면이
+ *   «돌고 있습니다» 만 말하면 멈춘 건지 도는 건지 몰라 기록창의 흐르는 글자를
+ *   들여다보게 된다 — 실제로 다 끝나기 전에 «완료예요?» 를 물었다.
+ * ★ **실행 단추 옆**에 붙인다. 누른 사람이 보고 있는 자리가 거기다. 도는
+ *   단계가 바뀌면 같은 칸이 그 단계의 줄로 옮겨 간다 — 칸을 여럿 만들지 않는다.
+ * ★ 끝난 뒤에도 지우지 않는다. «저건 4분 걸리는 일» 이 다음 번 예상이 된다.
+ */
+let SEC_EL = null, SEC_STEP = "";
+const hms = (t) => {
+  t = Math.max(0, Math.round(Number(t) || 0));
+  const m = Math.floor(t / 60), s = t % 60;
+  return m ? `${m}분 ${String(s).padStart(2, "0")}초` : `${s}초`;
+};
+function drawElapsed(step, sec, running, failed) {
+  // 끝나면 step 이 "done" 이 된다 — 그때는 마지막으로 돌던 단계의 줄에 남긴다
+  if (step && step !== "done") SEC_STEP = step;
+  const btn = $("#btn-" + SEC_STEP);
+  const row = btn && btn.closest(".run-in");
+  if (!row || !sec) return;
+  if (!SEC_EL) SEC_EL = document.createElement("span");
+  if (SEC_EL.parentElement !== row) row.insertBefore(SEC_EL, btn);
+  SEC_EL.className = "run-sec" + (running ? " on" : "");
+  SEC_EL.textContent = running ? `${hms(sec)} 도는 중`
+    : failed ? `${hms(sec)} 만에 멈췄습니다` : `${hms(sec)} 걸렸습니다`;
 }
 
 async function tick() {
@@ -484,13 +532,15 @@ async function tick() {
     pre.scrollTop = pre.scrollHeight;
     logSeen = s.total;
   }
-  drawProgress(s.step, s.failed, s.running, s.steps);
+  drawProgress(s.step, s.failed, s.running, s.steps, s.sec);
+  drawElapsed(s.step, s.sec, s.running, s.failed);
   if (!s.running) {
     clearInterval(poll); poll = null;
     $$(".btn-ink").forEach((b) => { b.disabled = false; });
     await refresh();
     if ((location.hash || "") === "#/p3") loadSubs();
-    toast(s.failed ? "멈췄습니다 — 아래 기록을 보세요" : "끝났습니다", s.failed);
+    toast(s.failed ? "멈췄습니다 — 아래 기록을 보세요"
+                   : `끝났습니다 — ${hms(s.sec)} 걸렸습니다`, s.failed);
   }
 }
 
@@ -536,7 +586,19 @@ $("#btn-p2").onclick = () => run("p2", "#btn-p2");
 $("#btn-p2b").onclick = () => run("p2b", "#btn-p2b");
 $("#btn-p3").onclick = () => run("p3", "#btn-p3");
 $("#btn-p4").onclick = () => run("p4", "#btn-p4");
-$("#btn-p5").onclick = () => run("p5", "#btn-p5");
+/* 09 실행 — 맨 위에서 **고른 묶음의 씬만** 굽는다.
+   ★ 이어붙인 `all*.mp4` 는 **이번에 구운 것**으로만 만들어진다. 한 편을
+     통째로 다시 얻으려면 «전체» 를 켜고 눌러야 한다. */
+$("#btn-p5").onclick = () => {
+  const rows = BUNDLES.bundles || [];
+  if (!rows.length) return run("p5", "#btn-p5");   // 묶음이 없으면 예전 길
+  const sel = new Set(pickedNos());
+  if (!sel.size) return toast("고른 묶음이 없습니다 — 아바타를 먼저 붙이세요", true);
+  const range = rows.filter((b) => sel.has(Number(b.no)))
+    .map((b) => { const n = b.scenes || []; return `${n[0]}-${n[n.length - 1]}`; })
+    .join(",");
+  runScenes("p5", range, $("#btn-p5"));
+};
 
 /* ── 씬 목록 ───────────────────────────────────────────────
  * 단계마다 같은 목록을 쓰되 **그 단계가 만든 것만** 굵게 보여 준다.
@@ -600,12 +662,36 @@ function drawDone() {
   box.innerHTML = `<div class="out-head"><h2>${j.task}</h2>` +
     `<span>자막 ${j.sub_lang} · ${mmss(j.total)} · ${done}/${j.scenes.length}씬</span></div>`;
 
-  if (j.all) {
+  /* ── 완성본 목록 ─────────────────────────────────────────────────────
+   * ★ **덮어쓰지 않고 쌓인다.** p5 가 이름 앞에 «연월일-시분» 을 붙이므로
+   *   새로 구운 것이 맨 위다. 한 강의를 여러 번 굽는 것이 정상이라 —
+   *   묶음이 하나씩 오고, 스타일을 바꿔 보고, 자막을 고쳐 다시 굽는다 —
+   *   앞 것이 사라지면 «아까 그게 나았는데» 를 되돌릴 길이 없다.
+   * ★ 목록은 09 폴더를 읽어 만든다. 뒤쪽 이름은 사람이 고쳐도 그대로 뜬다.
+   * ★ 화면에는 재생기를 **하나만** 둔다. 스무 개가 쌓였을 때 재생기를 스무 개
+   *   놓으면 창이 무거워진다 — 줄을 누르면 그 줄이 위 재생기에 올라온다.
+   */
+  const builds = j.builds || (j.all ? [{ name: j.all, at: "", mb: 0 }] : []);
+  if (builds.length) {
     const whole = document.createElement("div");
     whole.className = "sc-whole";
-    whole.innerHTML = `<div class="sc-cap">이어 붙인 한 편 — ${mmss(j.total)}</div>` +
-      `<video controls preload="metadata" src="/api/scene-media?task=` +
-      `${encodeURIComponent(j.task)}&rel=preview/${encodeURIComponent(j.all)}"></video>`;
+    const srcOf = (name) => `/api/scene-media?task=${encodeURIComponent(j.task)}`
+      + `&rel=preview/${encodeURIComponent(name)}`;
+    whole.innerHTML = `<div class="sc-cap">완성본 <b>${builds.length}개</b>`
+      + ` — 새로 구운 것이 맨 위입니다</div>`
+      + `<video controls preload="metadata" src="${srcOf(builds[0].name)}"></video>`
+      + `<div class="build-list">` + builds.map((b, i) =>
+          `<button type="button" class="build${i ? "" : " on"}" data-build="${b.name}">`
+          + `<span class="build-n">${b.name}</span>`
+          + `<span class="build-s">${b.at}${b.mb ? " · " + b.mb + "MB" : ""}</span>`
+          + `</button>`).join("") + `</div>`;
+    whole.addEventListener("click", (e) => {
+      const row = e.target.closest("[data-build]");
+      if (!row) return;
+      whole.querySelector("video").src = srcOf(row.dataset.build);
+      whole.querySelectorAll(".build").forEach((x) => x.classList.remove("on"));
+      row.classList.add("on");
+    });
     box.appendChild(whole);
   }
 
@@ -1089,6 +1175,10 @@ function sendCard(b) {
  * ★ 탐색기로 옮기게 하지 않는다. 이 칸이 이미 «어느 묶음» 인지 알고 있으니
  *   사람이 폴더를 다시 찾아 들어갈 이유가 없다. 놓으면 그 묶음 폴더에
  *   앉고, 목록에 뜨고, 바로 아래 단추로 붙인다.
+ * ★ 그래서 여기엔 «폴더 열기» 를 두지 않는다. 두면 위 보내기 칸과 **같은
+ *   폴더**를 여는 단추가 화면에 둘이 되고, 받기 칸이 «끌어다 놓는 자리» 가
+ *   아니라 «폴더로 옮기는 자리» 처럼 읽힌다. 꺼낼 것은 위에서, 되돌릴 것은
+ *   여기서 — 방향이 하나씩이어야 한다.
  * ★ 묶음마다 단추를 따로 둔다. 다섯 묶음이 다 오길 기다리지 않고 온 것부터
  *   붙여 확인할 수 있어야 한다 — 하나가 잘못 왔을 때 나머지가 멈추면 안 된다.
  */
@@ -1134,10 +1224,7 @@ function recvCard(b) {
     + `<button type="button" class="btn-ink sm" data-attach="${b.no}" `
     + (vids.length ? "" : "disabled ") + `>`
     + `<span data-icon="play" data-icon-size="14"></span>`
-    + `<span>이 묶음 붙이기</span></button>`
-    + `<button type="button" class="btn-plain" data-open="${b.path}">`
-    + `<span data-icon="folder" data-icon-size="14"></span>`
-    + `<span>폴더 열기</span></button></div>`;
+    + `<span>이 묶음 붙이기</span></button></div>`;
 
   // ── 끌어다 놓기 ─────────────────────────────────────────────────────────
   const inp = d.querySelector('input[type="file"]');
@@ -1237,7 +1324,83 @@ async function loadBundles() {
   }
   drawBundles();
   drawAvatar();
+  drawP5Pick();
 }
+
+/* ── 09 «어느 묶음을 굽나» ────────────────────────────────────────────────
+ *
+ * ★ **묶음이 고르는 단위다.** 묶음 하나가 업체에 한 번 올리는 단위이고 아바타도
+ *   그 단위로 온다. 그러니 굽는 것도 그 단위다 — 씬 서른둘을 하나씩 고르게
+ *   하면 «묶음 2 가 왔으니 그것만 구워 보자» 를 8,9,10… 으로 옮겨 적어야 한다.
+ *
+ * ★ 아바타가 하나도 안 온 묶음은 **못 고르게** 둔다. 골라도 p5 가 건너뛴다
+ *   (목소리와 아바타가 둘 다 있는 씬만 굽는다). 고를 수 있게 두면 «골랐는데
+ *   왜 안 나오지» 가 된다 — 화면이 할 수 없는 일을 할 수 있는 척하면 안 된다.
+ *
+ * ★ 아무것도 안 고른 상태는 «아바타 온 것 전부» 로 읽는다. 처음 들어와서
+ *   바로 실행을 누르는 사람이 제일 많고, 그때 아무것도 안 구워지면 안 된다.
+ */
+let P5PICK = null;          // Set(묶음 번호). null 이면 «아바타 온 것 전부»
+
+const pickable = () => (BUNDLES.bundles || []).filter((b) => (b.avatar_scenes || []).length);
+const pickedNos = () => {
+  const ok = pickable().map((b) => Number(b.no));
+  return P5PICK === null ? ok : ok.filter((n) => P5PICK.has(n));
+};
+
+function drawP5Pick() {
+  const host = $("#p5-pick");
+  if (!host) return;
+  const rows = BUNDLES.bundles || [];
+  if (!rows.length) { host.innerHTML = ""; return; }
+  const sel = new Set(pickedNos());
+  const nAll = pickable().length;
+  const pickedRows = rows.filter((b) => sel.has(Number(b.no)));
+  const nSc = pickedRows.reduce((a, b) => a + (b.avatar_scenes || []).length, 0);
+  const sec = pickedRows.reduce((a, b) => a + Number(b.sec || 0), 0);
+
+  host.innerHTML =
+    `<label class="pick-row pick-all">`
+    + `<input type="checkbox" id="p5-all"${sel.size === nAll && nAll ? " checked" : ""}`
+    + (nAll ? "" : " disabled") + `>`
+    + `<b>전체</b><span class="pick-say">아바타가 온 묶음만 고를 수 있습니다</span></label>`
+    + rows.map((b) => {
+      const nos = b.scenes || [];
+      const nAv = (b.avatar_scenes || []).length;
+      const done = Number(b.preview || 0);
+      return `<label class="pick-row${nAv ? "" : " off"}">`
+        + `<input type="checkbox" data-pick="${b.no}"`
+        + (sel.has(Number(b.no)) ? " checked" : "") + (nAv ? "" : " disabled") + `>`
+        + `<b>묶음 ${b.no}</b>`
+        + `<span class="pick-sc">씬 ${nos[0]}~${nos[nos.length - 1]}</span>`
+        + `<span class="pick-sec">${mmss(b.sec)}</span>`
+        + `<span class="pick-st">` + (nAv
+            ? `아바타 <b>${nAv}/${nos.length}</b>`
+              + (done ? ` · 구움 <b>${done}/${nos.length}</b>` : "")
+            : `<i>아직 아바타가 없습니다</i>`) + `</span></label>`;
+    }).join("")
+    + `<div class="pick-sum">` + (nSc
+        ? `고른 묶음 <b>${pickedRows.length}개</b> · 구울 씬 <b>${nSc}개</b>`
+          + ` · 묶음 길이 합 ${mmss(sec)}`
+        : `<b style="color:var(--err)">고른 묶음이 없습니다</b> — `
+          + `07 아바타에서 받은 영상을 먼저 붙이세요`) + `</div>`;
+}
+
+document.addEventListener("change", (e) => {
+  const all = e.target.closest("#p5-all");
+  if (all) {
+    P5PICK = all.checked ? null : new Set();
+    drawP5Pick();
+    return;
+  }
+  const one = e.target.closest("[data-pick]");
+  if (one) {
+    if (P5PICK === null) P5PICK = new Set(pickedNos());
+    const n = Number(one.dataset.pick);
+    if (one.checked) P5PICK.add(n); else P5PICK.delete(n);
+    drawP5Pick();
+  }
+});
 
 function drawBundles() {
   const host = $("#bundle-list");
