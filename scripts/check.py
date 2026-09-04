@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scripts.common import (CHUNK_MAX_SEC, CUE_GAP_SEC, CUE_MAX_SEC, CUE_MIN_SEC,
-                            PERSO_LIMIT_SEC, cue_max_chars, current_workspace,
+                            VENDOR_LIMIT_SEC, cue_max_chars, current_workspace,
                             load_json, mmss, paths, srt_path)
 from scripts.cues import parse_srt
 
@@ -95,14 +95,14 @@ def main() -> None:
         check(False, f"03/{srt.name} 있음", f"s3_cue.py --lang {lang} 를 돌리세요")
 
     print()
-    print("04 — perso 분할")
+    print("04 — 업체 분할")
     chunks = []
     if P.chunks.is_file():
         chunks = load_json(P.chunks)
         lens = [float(r["end_sec"]) - float(r["start_sec"]) for r in chunks]
         longest = max(lens, default=0.0)
-        check(all(x <= PERSO_LIMIT_SEC for x in lens),
-              f"모든 조각이 perso 한계({mmss(PERSO_LIMIT_SEC)}) 이하",
+        check(all(x <= VENDOR_LIMIT_SEC for x in lens),
+              f"모든 조각이 업체 한계({mmss(VENDOR_LIMIT_SEC)}) 이하",
               f"가장 긴 조각 {mmss(longest)}")
         check(all(x <= CHUNK_MAX_SEC for x in lens),
               f"모든 조각이 상한({mmss(CHUNK_MAX_SEC)}) 이하 — 마진 확보",
@@ -136,14 +136,14 @@ def main() -> None:
         print("  [건너뜀] 05/scenes.json 없음 — 슬라이드를 안 받은 강의입니다")
 
     print()
-    print("06 — perso 패키지")
-    if chunks and P.perso.is_dir():
+    print("06 — 업체 패키지")
+    if chunks and P.pkg.is_dir():
         wanted = ["audio.m4a", f"subs.{lang}.srt", "scenes.csv", "지시서.md"]
-        if (P.perso / "chunk01" / "video.mp4").is_file():
+        if (P.pkg / "chunk01" / "video.mp4").is_file():
             wanted.append("video.mp4")
         for r in chunks:
             no = int(r["no"])
-            d = P.perso / f"chunk{no:02d}"
+            d = P.pkg / f"chunk{no:02d}"
             missing = [n for n in wanted if not (d / n).is_file()]
             check(not missing, f"chunk{no:02d} 파일 다 있음", f"없음: {join(missing)}")
             f = d / f"subs.{lang}.srt"
@@ -153,7 +153,7 @@ def main() -> None:
                 check(bool(cc) and cc[0].start < 60.0,
                       f"chunk{no:02d} 자막이 0초 근처에서 시작", f"첫 큐가 {first}")
     else:
-        check(False, "06/perso/ 있음", "s6을 돌리세요")
+        check(False, "06/pkg/ 있음", "s6을 돌리세요")
 
     print()
     if fails:

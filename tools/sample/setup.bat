@@ -6,7 +6,7 @@ REM Plain ASCII only, on purpose (Korean-locale cmd.exe reads .bat as CP949).
 REM This sets up the SAMPLE tool: material folder -> dummy.mp4
 REM The main pipeline lives in the repo root.
 
-echo == mp42perso sample-maker setup ==
+echo == avatar-lecture sample-maker setup ==
 echo.
 
 set "ROOT=%~dp0..\.."

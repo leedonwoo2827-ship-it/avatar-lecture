@@ -187,7 +187,7 @@ def main() -> None:
         want = est / total * a.length_scale
         print(f"       est_sec 만큼 맞추려면 --length-scale {want:.2f} 로 다시 돌리세요")
     if total < 30 * 60:
-        print("경고: 30분이 안 됩니다 — perso 분할 로직(s4)이 검증되지 않습니다.")
+        print("경고: 30분이 안 됩니다 — 업체 분할 로직(s4)이 검증되지 않습니다.")
         print("      --length-scale 을 올리거나 대본을 늘리세요.")
     print(f"       {audio_dir}")
 

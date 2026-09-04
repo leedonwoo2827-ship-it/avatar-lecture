@@ -1,4 +1,4 @@
-# 본 파이프라인(scripts/) — mp4 → perso 패키지
+# 본 파이프라인(scripts/) — 대본·슬라이드 → 아바타 강의 영상
 faster-whisper
 
 # 자막 번역·검수 보조 — API 키 없이 `claude` CLI 로그인(OAuth)을 쓴다

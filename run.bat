@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0"
 
-REM mp42perso - web console. Double-click this file.
+REM avatar-lecture - web console. Double-click this file.
 REM Plain ASCII only (Korean-locale cmd.exe reads .bat as CP949) - the Korean
 REM text lives in the Python server and the HTML page.
 REM

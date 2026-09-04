@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """S7 — 검수용 자막 번인본. **자막을 이미지로 만들지 않는다.**
 
-    output/NN/00/<원본>.mp4 + 06/perso/chunkNN/subs.<lang>.srt
+    output/NN/00/<원본>.mp4 + 06/pkg/chunkNN/subs.<lang>.srt
         → output/NN/06/_preview/chunkNN.mp4
 
 지금까지 자막을 씬마다 이미지로 만들어 얹느라 10분짜리에도 한참이 걸렸다. 그
 작업이 여기서 통째로 없어진다 — ffmpeg의 subtitles 필터가 SRT를 읽어 한 번에
 그린다. 글꼴·크기·위치도 필터 인자로 준다.
 
-이건 **검수용**이다. perso에 올라가는 건 어디까지나 06/perso/chunkNN/ 안의
+이건 **검수용**이다. 업체에 올라가는 건 어디까지나 06/pkg/chunkNN/ 안의
 클린 오디오와 SRT다. 여기서 구운 mp4는 검수자에게 "이렇게 보입니다" 하고
 보여 주는 용도로만 쓴다.
 
@@ -63,7 +63,7 @@ def main() -> None:
 
     for r in chunks:
         no, s, e = int(r["no"]), float(r["start_sec"]), float(r["end_sec"])
-        d = P.perso / f"chunk{no:02d}"
+        d = P.pkg / f"chunk{no:02d}"
         srt = d / f"subs.{a.sub_lang}.srt"
         if not srt.is_file():
             die(f"{srt} 가 없습니다 — s6_package.py --sub-lang {a.sub_lang} 를 먼저 돌리세요")
@@ -88,7 +88,7 @@ def main() -> None:
         print(f"  {out.name}  ({mmss(end - s)})")
 
     print(f"완료 — {P.preview}")
-    print("이건 검수용입니다. perso에 올릴 건 06/perso/chunkNN/ 안의 클린본입니다.")
+    print("이건 검수용입니다. 업체에 올릴 건 06/pkg/chunkNN/ 안의 클린본입니다.")
 
 
 if __name__ == "__main__":

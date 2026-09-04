@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-"""S6 — perso에 그대로 올릴 조각 패키지를 만든다. 이 파이프라인의 산출물이다.
+"""S6 — 업체에 그대로 올릴 조각 패키지를 만든다. 이 파이프라인의 산출물이다.
 
     output/NN/01/audio.m4a + 03/subs.<lang>.srt + 04/chunks.json (+ 05/scenes.json)
-        → output/NN/06/perso/chunk01/
+        → output/NN/06/pkg/chunk01/
              audio.m4a      아바타 립싱크 소스 — 자막 없는 클린본
              subs.<lang>.srt  그 조각만, **0초부터 다시 매긴** 타임코드
              scenes.csv     그 조각에 걸리는 씬만
              slides/        그 조각에 쓰이는 슬라이드 이미지만
              지시서.md       외부 제작사가 읽을 작업 지시 — 자동 생성
 
-**자막을 영상에 굽지 않는다.** perso에는 클린 오디오와 SRT를 따로 올린다. 자막을
+**자막을 영상에 굽지 않는다.** 업체에는 클린 오디오와 SRT를 따로 올린다. 자막을
 이미지로 만들어 얹던 수작업이 이 단계에서 통째로 사라진다 — 검수용 번인본이
 필요하면 s7이 ffmpeg 한 번으로 굽는다.
 
@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from scripts.common import (PERSO_LIMIT_SEC, VIDEO_EXTS, current_workspace, die, ffmpeg, load_json,
+from scripts.common import (VENDOR_LIMIT_SEC, VIDEO_EXTS, current_workspace, die, ffmpeg, load_json,
                             mmss, need, paths, run, srt_path)
 from scripts.cues import Cue, cues_from_json, parse_srt, to_srt
 
@@ -32,14 +32,14 @@ INSTRUCTION = """# {lecture} — 조각 {no:02d} / {total_chunks} 작업 지시
 
 ## 이 조각이 무엇인가
 원본 강의 **{lecture}** 중 **{start} ~ {end}** 구간입니다 (길이 **{length}**).
-perso가 한 번에 처리할 수 있는 길이(30분)를 넘지 않도록 잘라 둔 것입니다.
+업체가 한 번에 처리할 수 있는 길이(30분)를 넘지 않도록 잘라 둔 것입니다.
 {sibling}
 
 ## 넘긴 파일
 | 파일 | 무엇인가 | 어떻게 쓰나 |
 |---|---|---|
 | `video.mp4` | 이 구간의 화면. **소리가 없습니다(무음)** | 화면 소스. 소리를 뺀 이유는 아바타 음성이 `audio.m4a`에서 새로 만들어지기 때문입니다 — 영상에 원본 소리가 남아 있으면 두 소리가 겹칩니다 |
-| `audio.m4a` | 이 구간의 강의 음성 (자막·효과음 없는 클린본) | **아바타 립싱크 소스**로 perso에 올립니다 |
+| `audio.m4a` | 이 구간의 강의 음성 (자막·효과음 없는 클린본) | **아바타 립싱크 소스**로 업체에 올립니다 |
 | `subs.{lang}.srt` | 이 구간의 자막. 타임코드는 **이 조각의 0초 기준**입니다 | 자막 트랙으로 올리거나, 마지막에 얹습니다 |
 | `scenes.csv` | 화면이 바뀌는 시각과 그때 떠 있는 슬라이드 | 슬라이드 전환 타이밍을 맞출 때 봅니다 |
 | `slides/` | 이 구간에 쓰이는 슬라이드 이미지 | 슬라이드를 낱장으로 다시 쓸 때 |
@@ -68,10 +68,10 @@ perso가 한 번에 처리할 수 있는 길이(30분)를 넘지 않도록 잘�
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="perso 투입 패키지 만들기")
+    ap = argparse.ArgumentParser(description="업체 투입 패키지 만들기")
     ap.add_argument("--sub-lang", default="ru", help="담을 자막 언어 (기본 ru, 번역본이 있으면 uz)")
     ap.add_argument("--no-video", action="store_true",
-                    help="조각별 영상(video.mp4)을 만들지 않는다. perso가 영상을 "
+                    help="조각별 영상(video.mp4)을 만들지 않는다. 업체가 영상을 "
                          "안 받는 것으로 확인되면 이걸 주면 시간이 크게 줄어든다")
     a = ap.parse_args()
     lang = a.sub_lang
@@ -108,11 +108,11 @@ def main() -> None:
     for r in chunks:
         no, s, e = int(r["no"]), float(r["start_sec"]), float(r["end_sec"])
         length = e - s
-        if length > PERSO_LIMIT_SEC:
-            die(f"chunk{no:02d}가 perso 한계({mmss(PERSO_LIMIT_SEC)})를 넘습니다 "
+        if length > VENDOR_LIMIT_SEC:
+            die(f"chunk{no:02d}가 업체 한계({mmss(VENDOR_LIMIT_SEC)})를 넘습니다 "
                 f"— s4_split.py --targets 로 다시 자르세요")
 
-        d = P.perso / f"chunk{no:02d}"
+        d = P.pkg / f"chunk{no:02d}"
         (d / "slides").mkdir(parents=True, exist_ok=True)
 
         # 오디오 — `-ss`를 `-i` 뒤에 둔다. 앞에 두면 가장 가까운 키프레임으로
@@ -169,8 +169,8 @@ def main() -> None:
               f"씬 {len(my_scenes)}개 · 슬라이드 {n_slides}장"
               + ("  + video.mp4(무음)" if video is not None else ""))
 
-    print(f"완료 — {P.perso}")
-    print("이 폴더를 그대로 perso에 올리고, 외부 제작사에는 폴더째 넘기면 됩니다.")
+    print(f"완료 — {P.pkg}")
+    print("이 폴더를 그대로 업체에 올리고, 외부 제작사에는 폴더째 넘기면 됩니다.")
     print("검수용 자막 번인본이 필요하면: python scripts/s7_preview.py")
 
 

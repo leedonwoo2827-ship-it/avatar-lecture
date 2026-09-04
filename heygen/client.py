@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """HeyGen 플랫폼 — **붙었다.**
 
-`perso/client.py` 는 엔드포인트를 몰라 비워 둔 껍데기다(문서가 안 열렸다).
+옛 업체 클라이언트는 엔드포인트를 몰라 껍데기로 두었다가 지웠다.
 HeyGen 은 문서가 다 있어서 이 파일은 **추측 없이** 채워져 있다. 아래 ENDPOINTS 는
 전부 developers.heygen.com 에서 읽은 실제 경로다.
 
-perso 와 함수 모양을 일부러 같게 뒀다 — `status()` · `tts()` · `avatar()` —
+함수 모양을 셋으로 좁혀 뒀다 — `status()` · `tts()` · `avatar()` —
 webapp 이 그 모양을 읽어 가고, 나중에 업체를 갈아탈 때 부르는 쪽을 안 고치려는 것이다.
 
 ★ 표준 라이브러리만 쓴다(urllib). 나머지 파이프라인이 그렇듯 pip 의존을 늘리지
@@ -102,7 +102,7 @@ def save_conf(**kw: str) -> dict:
     """화면·CLI 에서 받은 값을 넣는다.
 
     **빈 값으로 온 항목은 덮지 않는다** — 키만 고치려고 저장했다가 아바타 id 를
-    지워 버리는 사고를 막는다(perso/client.py 와 같은 이유). 지우려면 파일을 고친다.
+    지워 버리는 사고를 막는다. 지우려면 파일을 고친다.
     """
     conf = {}
     if CONF.is_file():
@@ -360,7 +360,7 @@ def probe() -> dict:
 def balance() -> None:
     """남은 잔액.
 
-    ★ **문서에 잔액 조회 엔드포인트가 없다.** perso 에서 «추측으로 URL 을 박아 두면
+    ★ **문서에 잔액 조회 엔드포인트가 없다.** 옛 업체에서 «추측으로 URL 을 박아 두면
       나중에 왜 401 이 뜨는지 며칠을 쓴다»고 배웠으므로 여기서도 추측하지 않는다.
       잔액은 HeyGen 대시보드(Billing)에서 본다.
     """
@@ -461,7 +461,7 @@ def download(url: str, dest: Path) -> Path:
     return dest
 
 
-# ══ perso 와 같은 모양의 두 함수 ════════════════════════════════════════════
+# ══ 밖으로 나가는 두 함수 ════════════════════════════════════════════
 
 def avatar(audio_path: Path, out_path: Path, *, avatar_id: str = "",
            engine: str = "", alpha: bool = True, aspect_ratio: str = "9:16",

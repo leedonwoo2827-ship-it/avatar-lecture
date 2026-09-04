@@ -11,9 +11,9 @@
       01/  audio.m4a(아바타 립싱크용 원본품질) · stt.wav(16k mono, 전사 전용)
       02/  words.json   {duration, segments, words}          ← s2 STT
       03/  cues.json · subs.<lang>.srt                       ← s3 한 줄 자막
-      04/  chunks.json                                        ← s4 perso 분할점
+      04/  chunks.json                                        ← s4 업체 분할점
       05/  scenes.json · scenes.csv                           ← s5 씬↔슬라이드
-      06/  perso/chunk01/ …                                   ← s6 투입 패키지
+      06/  pkg/chunk01/ …                                     ← s6 투입 패키지
            _preview/                                          ← s7 검수용 번인본
 
 s1~s7은 전부 **이름이 가장 늦은(=시각이 가장 최근인) 워크스페이스**를 대상으로
@@ -51,10 +51,10 @@ OUTPUT_DIR = ROOT / "output"
 VIDEO_EXTS = {".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v"}
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
 
-# ── perso 제약 ───────────────────────────────────────────────────────────────
-# perso는 30분에서 끊긴다. 상한을 28분으로 잡아 2분을 마진으로 남긴다 — 인코딩
-# 오차나 perso 쪽 반올림으로 1799.6초가 1800.4초로 읽히는 사고를 피하려는 것.
-PERSO_LIMIT_SEC = 30 * 60
+# ── 업체 제약 ───────────────────────────────────────────────────────────────
+# 옛 업체는 30분에서 끊겼다. 상한을 28분으로 잡아 2분을 마진으로 남긴다 — 인코딩
+# 오차나 업체 쪽 반올림으로 1799.6초가 1800.4초로 읽히는 사고를 피하려는 것.
+VENDOR_LIMIT_SEC = 30 * 60
 CHUNK_MAX_SEC = 28 * 60
 # 컷 지점은 "목표 시각 ± 이만큼" 창 안에서 **가장 긴 침묵**을 찾아 정한다.
 # 초를 재서 딱 자르면 말 중간이 잘려 아바타가 깨지므로, 반드시 말과 말 사이에서 끊는다.
@@ -163,7 +163,7 @@ def paths(ws: Path) -> SimpleNamespace:
         scenes=ws / "05" / "scenes.json",
         scenes_csv=ws / "05" / "scenes.csv",
         dist=dist,
-        perso=dist / "perso",
+        pkg=dist / "pkg",
         preview=dist / "_preview",
     )
 

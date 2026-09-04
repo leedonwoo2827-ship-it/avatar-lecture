@@ -6,7 +6,7 @@ REM Plain ASCII only in this file, on purpose. A Korean-locale cmd.exe parses
 REM .bat files in the system codepage (CP949), not UTF-8. Korean messages live
 REM in the Python scripts, which set their own stdout encoding.
 
-echo == mp42perso setup ==
+echo == avatar-lecture setup ==
 echo.
 
 echo [1/3] checking python

@@ -3,7 +3,7 @@
 
     강의/<작업>/scenes.json  →  강의/<작업>/voice/sceneNN.wav
 
-엔진이 셋이다. **perso 를 붙이기 전에 나머지 둘로 화면을 다 볼 수 있게** 갈라 뒀다 —
+엔진이 넷이다. **업체를 붙이기 전에 로컬 셋으로 화면을 다 볼 수 있게** 갈라 뒀다 —
 크레딧을 쓰지 않고 배치·자막·싱크를 먼저 확정하려는 것이다.
 
     pkg      **씬별 음성 파일이 이미 있을 때.** 폴더에서 `NNN.mp3` 를 씬 번호로
@@ -15,7 +15,6 @@
     silent   대본 길이만큼 무음. 시연본이 없을 때 배치만 볼 용도. 크레딧 0.
     heygen   HeyGen TTS. 녹음본 싱크가 안 맞을 때만. 보이스 존재 여부를
              `python -m heygen.cli voices --lang Uzbek` 로 **먼저 무료 확인**할 것.
-    perso    perso TTS. 안 붙었다.
 
 ★ 만든 뒤 **실제 길이를 재서** scenes.json 에 남긴다. 대본에 적힌 길이(71초)와
   실제로 만들어진 길이는 다를 수 있고, 그 차이가 자막을 밀어 버린다. 다음 단계
@@ -96,7 +95,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="씬별 목소리 만들기")
     ap.add_argument("--task", default="lecture01")
     ap.add_argument("--engine", default="pkg",
-                    choices=["pkg", "source", "silent", "heygen", "perso"])
+                    choices=["pkg", "source", "silent", "heygen"])
     ap.add_argument("--from", dest="src", default="",
                     help="pkg 엔진은 폴더(NNN.mp3 가 든), source 엔진은 원본 mp4")
     ap.add_argument("--scenes", default="", help="이 씬만 다시 만든다 (기본: 전부)")
@@ -109,10 +108,6 @@ def main() -> None:
         from scripts.p1_scenes import parse_range
         want = set(parse_range(a.scenes, len(rows)))
         rows = [r for r in rows if r["no"] in want]
-
-    if a.engine == "perso":
-        die("perso 엔진은 안 붙었습니다 — HeyGen 으로 옮겼습니다. "
-            "씬별 음성 파일이 있으면 --engine pkg --from <폴더> 를 쓰세요.")
 
     src = None
     if a.engine in ("pkg", "source"):

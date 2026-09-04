@@ -7,10 +7,10 @@ r"""웹 화면 — 브라우저에서 순서대로 돌리고 결과를 본다.
 webapp/index.html 하나에 들어 있어 디자인을 고치려면 그 파일만 건드리면 된다.
 
 **대본과 슬라이드에서 영상을 세우는 길(p1~p5)만** 담는다. 반대 방향(완성 mp4 를
-헐어 perso 재료를 만드는 s1~s7)은 이 저장소의 옛 용도라 화면에서 뺐다 —
+헐어 업체 재료를 만드는 s1~s7)은 이 저장소의 옛 용도라 화면에서 뺐다 —
 scripts/s1_*.py ~ s7_*.py 는 그대로 있으니 CLI 로는 계속 쓸 수 있다.
 
-perso 는 **목소리(p2)와 아바타(p4) 두 단계에서만** 부른다. 나머지는 전부 로컬
+아바타 업체는 **목소리(p2)와 아바타(p4) 두 단계에서만** 부른다. 나머지는 전부 로컬
 ffmpeg 이라 크레딧이 0 이다. 키를 넣기 전까지는 그 둘도 크레딧 안 쓰는 엔진으로
 돈다(시연본에서 소리 떼기 · 임시 아바타).
 """
@@ -571,16 +571,6 @@ def lecture_rows() -> list[dict]:
     return rows
 
 
-def perso_status() -> dict:
-    """perso 연결 상태. **안 붙었다** — HeyGen 으로 옮겼다. 자리만 남겨 둔다."""
-    try:
-        from perso.client import status
-        return status()
-    except Exception as e:  # noqa: BLE001 — 상태 조회가 화면을 막지 않게
-        return {"ok": False, "key": False, "why": f"상태를 읽지 못했습니다: {e}",
-                "endpoints": {}, "rates": {}, "credit_usd": 0}
-
-
 def heygen_status() -> dict:
     """HeyGen 연결 상태. 안 붙었으면 왜 안 붙었는지 그대로 말한다."""
     try:
@@ -801,8 +791,6 @@ class Handler(BaseHTTPRequestHandler):
             from scripts.langs import SCRIPTS, rows_for_ui
             return self._json({"langs": rows_for_ui(),
                                "scripts": [{"key": k, "label": l} for k, l in SCRIPTS]})
-        if path == "/api/perso":
-            return self._json(perso_status())
         if path == "/api/heygen":
             return self._json(heygen_status())
         if path == "/api/lectures":
@@ -956,19 +944,6 @@ class Handler(BaseHTTPRequestHandler):
                                voice_uz=body.get("voice_uz") or "",
                                engine=body.get("engine") or "",
                                motion_prompt=body.get("motion_prompt") or "")
-            except Exception as e:  # noqa: BLE001
-                return self._json({"error": f"저장하지 못했습니다: {e}"}, 500)
-            return self._json({"ok": True, "status": st})
-
-        if path == "/api/perso-key":
-            # 키는 파일에만 넣는다. 되돌려 주는 건 status() 뿐이라 화면에
-            # 키 자체가 다시 실려 나가지 않는다.
-            try:
-                from perso.client import save_conf
-                st = save_conf(api_key=body.get("api_key") or "",
-                               base_url=body.get("base_url") or "",
-                               voice_uz=body.get("voice_uz") or "",
-                               avatar_id=body.get("avatar_id") or "")
             except Exception as e:  # noqa: BLE001
                 return self._json({"error": f"저장하지 못했습니다: {e}"}, 500)
             return self._json({"ok": True, "status": st})

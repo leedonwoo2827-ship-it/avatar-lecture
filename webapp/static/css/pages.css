@@ -1,4 +1,4 @@
-/* mp42perso 화면 — app.css(가져온 디자인 시스템) 위에 이 앱의 화면만 더한다.
+/* Avatar Lecture 화면 — app.css(가져온 디자인 시스템) 위에 이 앱의 화면만 더한다.
  *
  * app.css 의 규칙 셋을 그대로 지킨다.
  *   1) 테두리(border)를 쓰지 않는다 — 구분은 inset box-shadow 헤어라인으로.
@@ -656,7 +656,7 @@ body.rail-off .conn-text { display: none; }
 .step-dot.done { background: var(--ok); }
 .step-dot.part { background: var(--yellow); }
 
-/* $ — perso 를 실제로 부르는 단계에만 붙는다 */
+/* $ — 아바타 업체를 실제로 부르는 단계에만 붙는다 */
 .step .cost {
   font-size: 9px; font-weight: 800; color: var(--err);
   border: 1px solid rgb(var(--err-rgb, 190 60 60) / .30);
