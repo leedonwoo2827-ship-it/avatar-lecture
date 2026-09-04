@@ -37,7 +37,7 @@ from scripts.common import ROOT, cue_max_chars, die, local_config, mmss, save_js
 from scripts.cues import parse_srt, to_srt
 
 
-# `01. [00:00:00 ~ 00:01:11] (1분 11초)  Добро пожаловать: цели занятия`
+# `01. [00:00:00 ~ 00:01:11] (1분 11초)  <씬 제목>`
 # 괄호 안의 길이는 사람 읽으라고 적힌 것이라 안 쓴다 — 시각 두 개가 사실이다.
 SCENE_RE = re.compile(
     r"^(\d{1,3})\.\s*\[\s*(\d\d:\d\d:\d\d)\s*~\s*(\d\d:\d\d:\d\d)\s*\]"
