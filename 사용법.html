@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Avatar Lecture 사용법</title>
+<style>
+  :root{
+    --ink:#1f2328; --ink-2:#4a4640; --ink-3:#7d766c;
+    --line:#e6e1d6; --paper:#fbfaf6; --card:#ffffff;
+    --brand:#876209; --brand-wash:#f7f2e4;
+    --ok:#2f6d4f; --ok-wash:#eef5f0;
+    --err:#a83f3f; --err-wash:#fbeaea;
+    --sky:#3f6ea8; --sky-wash:#eef4fb;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; padding:48px 28px 96px; background:var(--paper); color:var(--ink);
+    font:16px/1.75 "Malgun Gothic","맑은 고딕",-apple-system,"Segoe UI",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:880px; margin:0 auto}
+
+  /* ── 표지 ── */
+  .cover{border-bottom:3px solid var(--brand); padding-bottom:22px; margin-bottom:14px}
+  .kicker{font-size:13px; font-weight:700; letter-spacing:.08em; color:var(--brand)}
+  h1{margin:8px 0 10px; font-size:38px; line-height:1.25; letter-spacing:-.02em}
+  .lead{margin:0; font-size:17px; color:var(--ink-2)}
+  .meta{margin-top:14px; font-size:13px; color:var(--ink-3)}
+
+  h2{
+    margin:52px 0 14px; font-size:23px; letter-spacing:-.01em;
+    padding-top:14px; border-top:1px solid var(--line);
+  }
+  h2 .no{
+    display:inline-block; min-width:30px; margin-right:10px; padding:1px 8px;
+    border-radius:7px; background:var(--brand); color:#fff;
+    font-size:15px; font-weight:800; text-align:center; vertical-align:2px;
+  }
+  h3{margin:28px 0 8px; font-size:17px}
+  p{margin:10px 0}
+  b,strong{font-weight:700}
+  code{
+    font-family:Consolas,"D2Coding",ui-monospace,monospace; font-size:.92em;
+    background:var(--brand-wash); padding:1px 5px; border-radius:4px;
+  }
+  pre{
+    margin:12px 0; padding:14px 16px; border:1px solid var(--line); border-radius:10px;
+    background:var(--card); overflow-x:auto;
+    font-family:Consolas,"D2Coding",ui-monospace,monospace; font-size:13.5px; line-height:1.6;
+  }
+  ul,ol{margin:10px 0; padding-left:22px}
+  li{margin:6px 0}
+
+  /* ── 흐름 그림 ── */
+  .flow{display:flex; align-items:stretch; gap:10px; flex-wrap:wrap; margin:20px 0}
+  .step{
+    flex:1 1 150px; min-width:150px; padding:14px 14px 12px; border-radius:12px;
+    border:1px solid var(--line); background:var(--card);
+  }
+  .step.mine{background:var(--brand-wash); border-color:#e0d3ac}
+  .step.paid{background:var(--err-wash); border-color:#e9c9c9}
+  .step.edge{background:var(--sky-wash); border-color:#cddcef}
+  .step h4{margin:0 0 6px; font-size:14px; letter-spacing:-.01em}
+  .step p{margin:0; font-size:12.5px; line-height:1.6; color:var(--ink-2)}
+  .arrow{align-self:center; color:var(--ink-3); font-size:20px}
+
+  /* ── 상자들 ── */
+  .box{
+    margin:16px 0; padding:14px 16px; border-radius:10px;
+    border:1px solid var(--line); background:var(--card);
+  }
+  .warn{background:var(--err-wash); border-color:#e9c9c9}
+  .tip{background:var(--ok-wash); border-color:#cfe3d7}
+  .note{background:var(--brand-wash); border-color:#e0d3ac}
+  .box .t{display:block; font-weight:800; margin-bottom:4px}
+  .warn .t{color:var(--err)}
+  .tip .t{color:var(--ok)}
+  .note .t{color:var(--brand)}
+
+  /* ── 캡처 자리 ── */
+  .shot{
+    margin:16px 0; padding:34px 16px; text-align:center; border-radius:10px;
+    border:2px dashed #cfc9bb; background:#f4f2ec; color:var(--ink-3); font-size:13.5px;
+  }
+  .shot b{display:block; color:var(--ink-2); font-size:14px; margin-bottom:3px}
+
+  /* ── 표 ── */
+  table{width:100%; border-collapse:collapse; margin:14px 0; font-size:14.5px}
+  th,td{border:1px solid var(--line); padding:8px 11px; text-align:left; vertical-align:top}
+  th{background:var(--brand-wash); font-weight:700}
+  td.num{text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap}
+  .dim{color:var(--ink-3)}
+
+  /* ── 순서 목록 ── */
+  ol.big{counter-reset:s; list-style:none; padding-left:0; margin:18px 0}
+  ol.big > li{
+    counter-increment:s; position:relative; padding:2px 0 14px 44px; margin:0;
+  }
+  ol.big > li::before{
+    content:counter(s); position:absolute; left:0; top:2px;
+    width:30px; height:30px; border-radius:50%; background:var(--ink); color:#fff;
+    font-weight:800; font-size:14px; display:flex; align-items:center; justify-content:center;
+  }
+  ol.big > li > b:first-child{display:block; font-size:16.5px; margin-bottom:2px}
+
+  footer{margin-top:64px; padding-top:16px; border-top:1px solid var(--line);
+    font-size:13px; color:var(--ink-3)}
+
+  @media print{
+    body{padding:0; background:#fff; font-size:11.5pt}
+    h2{page-break-after:avoid} .shot,.box,table,pre{page-break-inside:avoid}
+    .shot{padding:22px 12px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="cover">
+  <div class="kicker">외주 작업 안내</div>
+  <h1>Avatar Lecture 사용법</h1>
+  <p class="lead">완성된 강의 mp4 의 확정 자원(대본·자막·슬라이드·목소리)을 그대로 가져와,
+     아바타가 강의하는 영상으로 다시 세우는 도구입니다.</p>
+  <p class="meta">2026-09-07 · 우즈베크어 음성 / 러시아어 자막 기준</p>
+</header>
+
+<h2><span class="no">0</span>한 장 요약</h2>
+
+<div class="flow">
+  <div class="step edge">
+    <h4>들어가는 것</h4>
+    <p>완성 강의 MP4<br>대본 TXT<br>번역 자막 SRT<br>슬라이드 PNG</p>
+  </div>
+  <div class="arrow">→</div>
+  <div class="step mine">
+    <h4>이 프로그램 · 0원</h4>
+    <p>씬으로 가르고<br>목소리를 떼고<br>자막을 맞춰<br><b>묶음 mp3</b> 를 뽑습니다</p>
+  </div>
+  <div class="arrow">→</div>
+  <div class="step paid">
+    <h4>HeyGen · 돈</h4>
+    <p>mp3 를 올리면<br>립싱크 아바타 영상이<br>옵니다<br><b>밖으로 나가는 유일한 자리</b></p>
+  </div>
+  <div class="arrow">→</div>
+  <div class="step mine">
+    <h4>이 프로그램 · 0원</h4>
+    <p>받은 영상을 씬에 붙이고<br>슬라이드·아바타·자막을<br>합쳐 굽습니다</p>
+  </div>
+  <div class="arrow">→</div>
+  <div class="step edge">
+    <h4>나오는 것</h4>
+    <p>씬마다 mp4<br>이어붙인 완성본<br>씬마다 언어별 자막</p>
+  </div>
+</div>
+
+<div class="note box">
+  <span class="t">이 도구가 하지 않는 일</span>
+  <b>목소리를 만들지 않습니다.</b> 원본 mp4 에서 그 씬 구간의 소리를 그대로 떼어 옵니다 —
+  이미 우즈베크어로 녹음된 소리라 립싱크가 진짜와 거의 같아지고 값도 0원입니다.
+  대본·자막·슬라이드도 새로 쓰지 않습니다. <b>새로 오는 것은 아바타뿐입니다.</b>
+</div>
+
+<h2><span class="no">1</span>시작하기</h2>
+
+<p>처음 한 번만 <code>setup.bat</code> 을 더블클릭합니다. 그다음부터는 <code>run.bat</code> 입니다.</p>
+
+<pre>run.bat        내 컴퓨터에서 — 전부 됩니다
+lan-run.bat    사내 다른 자리에서 — <b>보기만</b> 됩니다 (읽기 모드)</pre>
+
+<p>검은 창이 뜨고 브라우저가 열립니다. <b>이 검은 창은 작업하는 동안 켜 두세요.</b>
+   닫으면 프로그램이 꺼집니다.</p>
+
+<div class="shot"><b>화면 캡처 자리</b>run.bat 을 눌렀을 때 뜨는 검은 창 + 브라우저 첫 화면</div>
+
+<h2><span class="no">2</span>재료 넣기</h2>
+
+<p><b>폴더 하나가 강의 하나입니다.</b> 폴더 이름이 곧 강의 이름이 됩니다.</p>
+
+<pre>강의\
+  001\                          ← 폴더 이름 = 강의 이름
+    00\                         ← <b>사람이 넣는 것은 이것뿐입니다</b>
+      아무이름.mp4               목소리를 떼어 올 원본 (완성된 강의 영상)
+      아무이름.txt               대본
+      아무이름.srt               번역 자막 (없으면 프로그램이 만듭니다)
+      slides\001.png 002.png …   슬라이드 — <b>파일 앞 숫자가 씬 번호</b>
+  002\
+  …</pre>
+
+<p>파일 이름은 자유입니다. 자리만 맞으면 화면이 알아서 찾아 채웁니다.
+   대본은 이런 꼴입니다:</p>
+
+<pre>01. [00:00:00 ~ 00:01:11] (1분 11초)  &lt;씬 제목&gt;
+02. [00:01:11 ~ 00:02:24] (1분 13초)  &lt;씬 제목&gt;
+…</pre>
+
+<div class="warn box">
+  <span class="t">00 폴더는 건드리지 않습니다</span>
+  산출물은 <code>01</code> · <code>02</code> · <code>03</code> · <code>05</code> ·
+  <code>07</code> · <code>09</code> 로 따로 쌓입니다. 원본이 상할 일이 없습니다.
+</div>
+
+<h2><span class="no">3</span>화면 순서 — 번호가 곧 폴더</h2>
+
+<p>왼쪽 번호는 <b>디스크의 폴더 번호와 같습니다.</b> «3단계 결과가 어디 있나» 를 물을 일이 없게 한 것입니다.</p>
+
+<table>
+  <tr><th>화면</th><th>폴더</th><th>무엇을 하나</th><th>값</th></tr>
+  <tr><td>00 재료</td><td><code>00</code></td><td>강의를 고르고 스타일을 정합니다</td><td class="dim">—</td></tr>
+  <tr><td>01 씬</td><td><code>01</code></td><td>대본을 씬으로 가르고 자막·슬라이드를 짝지웁니다</td><td>0원</td></tr>
+  <tr><td>02 목소리</td><td><code>02</code></td><td>원본에서 그 씬 구간의 소리를 떼어 옵니다</td><td>0원</td></tr>
+  <tr><td>01 다국어 자막</td><td><code>01\subs</code></td><td>자막을 다른 언어로 옮깁니다</td><td>0원</td></tr>
+  <tr><td>03 자막</td><td><code>03</code></td><td><b>실제 음성 길이</b>에 자막을 다시 맞춥니다</td><td>0원</td></tr>
+  <tr><td>05 묶음</td><td><code>05</code></td><td>10분 안쪽으로 묶어 <b>올릴 mp3</b> 를 뽑습니다</td><td>0원</td></tr>
+  <tr><td>07 아바타</td><td><code>07</code></td><td>받아 온 영상을 씬에 붙입니다</td><td><b>여기만 돈</b></td></tr>
+  <tr><td>09 완성본</td><td><code>09</code></td><td>슬라이드 + 아바타 + 자막을 합쳐 굽습니다</td><td>0원</td></tr>
+</table>
+
+<h2><span class="no">4</span>하루 흐름</h2>
+
+<ol class="big">
+  <li><b>강의를 고릅니다</b>
+    <p>00 재료 화면 맨 위에서 강의를 누릅니다. <b>이것이 첫 동작입니다</b> —
+       안 고른 채로 아래를 만지면 남의 강의를 덮어씁니다. 고르면 재료 네 자리가 저절로 채워집니다.</p>
+    <div class="shot"><b>화면 캡처 자리</b>00 재료 — 강의 목록에서 하나를 고른 상태</div>
+  </li>
+
+  <li><b>「전부 만들기」를 누릅니다</b>
+    <p>왼쪽 위 검은 단추입니다. 씬 가르기부터 <b>묶음까지</b> 한 번에 돕니다.
+       45분 강의면 몇 분 걸립니다. 단추 옆에 걸린 시간이 표시됩니다.</p>
+    <p class="dim">아바타와 굽기는 여기 안 들어 있습니다 — 아바타는 밖에 나갔다 와야 하는 단계라
+       한 번에 돌리는 길에 끼우면 «영상이 없습니다» 로 멈춰 다 된 일까지 실패처럼 보입니다.</p>
+    <div class="shot"><b>화면 캡처 자리</b>「전부 만들기」가 도는 중 — 아래 기록창과 걸린 시간</div>
+  </li>
+
+  <li><b>05 묶음에서 mp3 를 꺼냅니다</b>
+    <p>07 아바타 화면의 <b>보내기 칸</b>에서 「폴더 열기」를 누르면 그 묶음 폴더가 열립니다.</p>
+    <pre>05\bundle01\
+   올릴음성.mp3        ← <b>이것을 올립니다</b> (묶음 전체, 8~10분)
+   올릴음성.ru.srt      참고용 자막
+   경계.txt            씬 경계와 올리는 방법 세 갈래
+   씬\scene01.mp3 …    씬 하나씩 올릴 때 씁니다</pre>
+    <div class="shot"><b>화면 캡처 자리</b>07 아바타 — 보내기 칸 + 열린 묶음 폴더</div>
+  </li>
+
+  <li><b>HeyGen 에 올려 렌더합니다</b>
+    <p>mp3 를 드래그드랍하고 아바타를 골라 렌더합니다. <b>지켜야 할 것은 아래 5장</b>에 있습니다.</p>
+  </li>
+
+  <li><b>받은 영상을 되돌려 놓습니다</b>
+    <p>07 아바타 화면의 <b>받기 칸</b>에 파일을 끌어다 놓습니다. 탐색기로 옮길 필요가 없습니다 —
+       그 칸이 이미 «어느 묶음» 인지 알고 있습니다.</p>
+    <p>놓으면 <b>길이 합이 묶음과 맞는지</b>를 화면이 먼저 말해 줍니다.</p>
+    <div class="shot"><b>화면 캡처 자리</b>07 아바타 — 받기 칸에 영상 두 개를 놓고 «길이 합이 묶음과 맞습니다» 가 뜬 상태</div>
+  </li>
+
+  <li><b>「이 묶음 붙이기」를 누릅니다</b>
+    <p>영상을 <b>자르지 않습니다.</b> 씬마다 «어디서부터 몇 초» 만 적어 둡니다. 금방 끝납니다.
+       끝나면 «남은 씬» 줄이 비어야 합니다.</p>
+  </li>
+
+  <li><b>09 완성본에서 굽습니다</b>
+    <p>맨 위에서 <b>어느 묶음을 굽나</b>를 고르고 실행합니다. 아바타가 안 온 묶음은 고를 수 없습니다.
+       묶음이 하나씩 오는 대로 그것만 구워 봐도 됩니다.</p>
+    <div class="shot"><b>화면 캡처 자리</b>09 완성본 — 묶음 체크박스와 구운 결과 목록</div>
+  </li>
+</ol>
+
+<h2><span class="no">5</span>HeyGen 에서 지켜야 할 것</h2>
+
+<div class="warn box">
+  <span class="t">① 투명 배경으로 받으세요</span>
+  다운로드 창의 <b>Advanced Settings</b> 를 펼쳐 <b>투명 배경</b>을 켜야 합니다.
+  배경이 검게 구워져 오면 슬라이드 위에 <b>검정 상자</b>가 얹힙니다.
+  이 아바타는 검정 정장이라 그 검정을 나중에 빼려 들면 <b>옷까지 지워집니다.</b>
+  <br><span class="dim">받은 파일 이름이 <code>.mp4</code> 라도 속이 투명 webm 이면 괜찮습니다 — 프로그램이 속을 보고 판단합니다.</span>
+</div>
+
+<div class="warn box">
+  <span class="t">② 모델을 확인하세요</span>
+  <b>IV 는 분당 16 크레딧, V 는 분당 43.8 크레딧</b>입니다. 세 배 가까이 차이 납니다.
+  무심코 V 로 두고 45분을 구우면 크레딧이 한 번에 마릅니다.
+</div>
+
+<div class="note box">
+  <span class="t">③ 이름에 씬 번호를 넣으면 씬별로 붙습니다</span>
+  <code>…scene01…</code> 처럼 씬 하나면 그 씬에, <code>…scene02-07…</code> 처럼 범위면
+  길이로 갈라 나눠 붙습니다. <b>도입 한 씬만 좋은 모델로 따로 뽑고 본문은 한 덩어리로 받는</b>
+  조합도 그대로 됩니다.
+</div>
+
+<div class="tip box">
+  <span class="t">④ 한 묶음 폴더에는 영상을 하나만</span>
+  같은 묶음에 옛 파일과 새 파일이 같이 있으면 길이 합이 안 맞아 붙지 않습니다.
+  화면의 <b>×</b> 로 지우고 새것만 두세요.
+</div>
+
+<h3>올리는 방법은 세 갈래입니다</h3>
+<table>
+  <tr><th>갈래</th><th>무엇을 올리나</th><th>좋은 점 / 대가</th></tr>
+  <tr>
+    <td><b>통째</b><br><span class="dim">기본</span></td>
+    <td><code>올릴음성.mp3</code><br>드래그드랍 한 번</td>
+    <td>자세와 제스처가 씬을 넘어 <b>이어집니다</b><br>
+        <span class="dim">씬마다 제스처를 따로 못 정합니다</span></td>
+  </tr>
+  <tr>
+    <td><b>씬별</b></td>
+    <td><code>씬\sceneNN.mp3</code><br>드래그드랍 여러 번</td>
+    <td>씬마다 제스처를 정하고 <b>틀린 씬만 다시</b> 렌더합니다<br>
+        <span class="dim">씬 시작마다 자세가 리셋됩니다</span></td>
+  </tr>
+  <tr>
+    <td><b>장면별</b></td>
+    <td><code>장면_…mp3</code></td>
+    <td>인사·마무리만 떼어 말투를 달리합니다</td>
+  </tr>
+</table>
+
+<h2><span class="no">6</span>값</h2>
+
+<table>
+  <tr><th>길</th><th>모델 IV</th><th>모델 V</th></tr>
+  <tr><td><b>웹 드래그드랍</b> (기본)</td>
+      <td class="num">분당 16 크레딧<br>≈ $0.78 · 약 1,050원</td>
+      <td class="num">분당 43.8 크레딧<br>≈ $2.15 · 약 2,900원</td></tr>
+  <tr><td><b>API</b></td>
+      <td class="num">분당 $3.00 · 약 4,000원</td>
+      <td class="dim">—</td></tr>
+</table>
+
+<p>45분 강의 한 편이면 웹 IV 로 <b>약 47,000원</b>, 전편을 V 로 뽑으면 약 129,000원입니다.</p>
+
+<table>
+  <tr><th>플랜</th><th>월 값</th><th>월 크레딧</th><th>IV 로 굽는 분량</th></tr>
+  <tr><td>Creator</td><td class="num">$29 · 약 3.8만원</td><td class="num">600</td><td class="num">약 37분</td></tr>
+  <tr><td>Pro</td><td class="num">$49 부터 · 약 6.5만원</td><td class="num">1,000 부터</td><td class="num">약 62분</td></tr>
+  <tr><td>Business</td><td class="num">첫 시트 $149 · 약 20만원</td><td class="num">1,500</td><td class="num">약 93분</td></tr>
+</table>
+
+<div class="warn box">
+  <span class="t">Creator 로는 45분 한 편이 안 됩니다</span>
+  분당 16 이면 37분에서 끊깁니다. 그리고 Business 는 크레딧당 값이 두 배라
+  <b>시트가 필요할 때만</b> 값이 맞습니다 — 크레딧이 모자라서 Business 로 올리는 것은 손해입니다.
+</div>
+
+<h2><span class="no">7</span>막히는 자리</h2>
+
+<table>
+  <tr><th>이런 일이 생기면</th><th>이렇게 하세요</th></tr>
+  <tr>
+    <td>HeyGen 다운로드가 <b>Processing…</b> 에서 안 넘어감</td>
+    <td>창을 닫고 나중에 새로고침해 다시 엽니다. <b>다음 날 되는 경우도 있습니다.</b>
+        묶음 다섯을 다 걸어 두고 이튿날 받는 식으로 잡으세요.</td>
+  </tr>
+  <tr>
+    <td>완성본에 <b>검정 상자</b>가 슬라이드를 덮음</td>
+    <td>투명 배경이 아닌 파일입니다. Advanced Settings 에서 투명을 켜고 다시 받으세요.</td>
+  </tr>
+  <tr>
+    <td>붙였는데 <b>남은 씬</b>이 그대로 남음</td>
+    <td>길이 합이 묶음과 안 맞는 것입니다. 폴더에 옛 영상이 같이 있는지 보세요.</td>
+  </tr>
+  <tr>
+    <td>화면 숫자가 <b>다른 강의 것</b>처럼 보임</td>
+    <td>00 재료에서 강의를 다시 눌러 고르세요.</td>
+  </tr>
+  <tr>
+    <td>「전부 만들기」가 <b>재료를 못 찾음</b></td>
+    <td>강의를 다시 누르면 재료 네 자리가 그 강의 것으로 채워집니다.</td>
+  </tr>
+  <tr>
+    <td>씬 몇 개만 다시 굽고 싶음</td>
+    <td>09 맨 위에서 그 묶음만 켜고 실행합니다. 구운 것은 <b>덮어쓰지 않고 쌓입니다.</b></td>
+  </tr>
+</table>
+
+<h2><span class="no">8</span>완성본이 나오는 자리</h2>
+
+<pre>강의\001\09\
+   260907-1532-all-full.mp4     ← 이름 앞이 «연월일-시분», 새것이 맨 위
+   260907-1421-all-panel.mp4
+   scene01-full.mp4 …           씬마다 하나씩 (검수용)</pre>
+
+<p>뒤쪽 이름은 마음대로 고쳐도 됩니다 — 목록은 폴더를 읽어서 만듭니다.
+   <b>구울 때마다 쌓이니 가끔 정리하세요.</b></p>
+
+<p>스타일은 둘입니다.
+   <b>전면샷</b>은 슬라이드를 꽉 채우고 그 위에 사람을 세웁니다.
+   <b>여백형</b>은 발표자 자리를 따로 비웁니다 — 슬라이드 오른쪽에 라벨이 있으면 이쪽이 낫습니다.
+   「둘 다」로 두면 한 번에 두 벌을 굽습니다.</p>
+
+<div class="shot"><b>화면 캡처 자리</b>완성본 두 스타일 비교 — 전면샷 / 여백형</div>
+
+<footer>
+  Avatar Lecture · 이 문서는 저장소의 <code>사용법.html</code> 입니다.
+  화면과 폴더가 바뀌면 이 문서도 같이 고칩니다.
+</footer>
+
+</div>
+</body>
+</html>
