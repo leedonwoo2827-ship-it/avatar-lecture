@@ -190,7 +190,16 @@ Creator 도 크레딧당 값은 Pro 와 거의 같습니다($0.048 대 $0.049). 
 { "audio_lang": "uz", "sub_lang": "ru", "tts_voice": "" }
 ```
 
-번역은 `claude` CLI 로 로그인해 둔 세션을 씁니다 — **API 키가 필요 없습니다.**
+번역은 로그인해 둔 CLI 세션을 씁니다 — **API 키가 필요 없습니다.** 두 가지를
+같이 둘 수 있습니다:
+
+```
+--engine claude   Claude Code CLI 로그인 (기본)
+--engine codex    codex CLI 의 ChatGPT 로그인
+```
+
+한 대에서 서로 안 건드립니다(`~/.claude/.credentials.json` · `~/.codex/auth.json`).
+같은 자막을 두 엔진으로 번갈아 돌려 견줄 수 있습니다.
 자막 한 줄 글자 수 상한은 문자 체계마다 다릅니다 (키릴·라틴 14~15자/초,
 한중일 6~7자/초).
 
@@ -202,7 +211,7 @@ Creator 도 크레딧당 값은 Pro 와 거의 같습니다($0.048 대 $0.049). 
 |---|---|
 | 씬 가르기 · 자막 맞추기 · 검사 | 규칙 코드 (모델 없음) |
 | 소리 떼기 · 굽기 · 이어붙이기 | ffmpeg |
-| 자막 번역 | Claude — 쓸 때만 |
+| 자막 번역 | Claude 또는 ChatGPT(codex) 로그인 — 쓸 때만 |
 | 아바타 | HeyGen (웹 또는 API) |
 
 ## 사내에 열어 두기

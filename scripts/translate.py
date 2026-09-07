@@ -98,7 +98,38 @@ SCHEMA = {
 }
 
 
-def _provider(budget_usd: float):
+ENGINES = ("claude", "codex")
+
+
+def _provider(budget_usd: float, engine: str = "claude"):
+    r"""엔진 이름 → 프로바이더. **둘을 같이 둔다 — 고르는 것이지 갈아치우는 게 아니다.**
+
+    claude   Claude Code CLI 로그인(OAuth). 기본값.
+    codex    codex CLI 의 ChatGPT 로그인(OAuth). `--engine codex` 로 고른다.
+
+    ★ 두 로그인은 한 대에서 **서로 안 건드린다.** 클로드는
+      `~/.claude/.credentials.json`, codex 는 `~/.codex/auth.json` 이다.
+      그래서 «둘 중 하나를 골라야 하나» 가 아니고, 같은 자막을 두 엔진으로
+      번갈아 돌려 견줄 수 있다 — 그것이 이 인자를 둔 이유다.
+
+    ★ 계약이 같아야 여기가 한 줄로 끝난다. 새 엔진을 붙일 때 부르는 쪽
+      (translate_lines · glossary)을 고쳐야 한다면 그 프로바이더가 잘못된 것이다.
+    """
+    engine = (engine or "claude").strip().lower()
+    if engine not in ENGINES:
+        die(f"그런 번역 엔진은 없습니다: {engine} (쓸 수 있는 것: {' · '.join(ENGINES)})")
+
+    if engine == "codex":
+        try:
+            from llm.codex_provider import CodexProvider
+        except ImportError as e:  # noqa: BLE001
+            die(f"llm/codex_provider.py 를 불러오지 못했습니다: {e}")
+        p = CodexProvider(budget_usd=budget_usd)
+        ok, why = p.ping()
+        if not ok:
+            die(why)
+        return p
+
     try:
         from llm.claude_provider import ClaudeProvider
     except ImportError as e:  # noqa: BLE001
@@ -114,12 +145,44 @@ def _provider(budget_usd: float):
                           budget_usd=budget_usd)
 
 
-def _one_batch(p, rows: list[tuple[int, str]], src: str, dst: str, maxc: int) -> dict[int, str]:
-    body = "\n".join(f"{n}. {t}" for n, t in rows)
+def _budget(dst: str, sec: float) -> int:
+    """그 언어로 `sec` 안에 읽힐 글자 수. 못 알아보는 언어면 0(=안 적는다)."""
+    if sec <= 0:
+        return 0
+    try:
+        from scripts.langs import budget_chars, find as find_lang
+        return budget_chars(find_lang(dst), sec)
+    except Exception:  # noqa: BLE001 — 예산을 못 재도 번역은 돌아야 한다
+        return 0
+
+
+def _glossary_block(glossary: dict[str, str] | None) -> str:
+    """용어집 표 → 프롬프트에 박을 덩어리. 없으면 빈 글자."""
+    if not glossary:
+        return ""
+    rows = "\n".join(f"- {k} → {v}" for k, v in glossary.items() if k and v)
+    return (GLOSSARY_HEAD + rows + "\n") if rows else ""
+
+
+def _one_batch(p, rows: list[tuple[int, str, float]], src: str, dst: str,
+               maxc: int, *, glossary: dict[str, str] | None = None) -> dict[int, str]:
+    r"""한 묶음을 옮긴다. **줄 하나가 자막 하나다.**
+
+    ★ rows 는 **(번호, 글, 초) 세 짝**이다. 부르는 쪽이 초를 같이 주는데 여기서
+      두 짝으로 풀다가 죽어 있었다(2026-09-07). 초를 쓰는 자리가 바로 아래다.
+
+    ★ 줄 앞에 `(3.2초·45자)` 를 붙여 보낸다 — 같은 뜻이라도 한국어는 7자/초,
+      러시아어는 14자/초로 읽혀서 3초짜리 줄에 들어갈 글자 수가 두 배 넘게
+      다르다. 줄 폭 상한만 지키면 폭은 맞고 **읽을 시간이 없는 자막**이 나온다.
+      SYSTEM 이 그 괄호를 읽는 법을 이미 적어 두고 있다.
+    """
+    body = "\n".join(
+        f"{n}. " + (f"({sec:.1f}초·{b}자) " if (b := _budget(dst, sec)) else "") + t
+        for n, t, sec in rows)
     prompt = (f"{LANG_NAME.get(src, src)} 자막 {len(rows)}줄이다. "
               f"{LANG_NAME.get(dst, dst)}로 옮겨라.\n"
               f"번호를 그대로 달아 {len(rows)}줄을 돌려준다.\n\n{body}")
-    out = p.structured(SYSTEM.format(maxc=maxc),
+    out = p.structured(SYSTEM.format(maxc=maxc, glossary=_glossary_block(glossary)),
                        [{"role": "user", "content": prompt}], schema=SCHEMA)
     got: dict[int, str] = {}
     want = {n for n, _, _ in rows}
@@ -136,7 +199,8 @@ def _one_batch(p, rows: list[tuple[int, str]], src: str, dst: str, maxc: int) ->
 def translate_lines(texts: list[str], src: str, dst: str, *,
                     secs: list[float] | None = None,
                     glossary: dict[str, str] | None = None,
-                    budget_usd: float = 8.0, log=print) -> list[str]:
+                    budget_usd: float = 8.0, engine: str = "claude",
+                    log=print) -> list[str]:
     """줄 목록 → 옮긴 줄 목록. **길이가 반드시 같다.**
 
     secs      줄마다 화면에 뜨는 시간(초). 주면 그 시간에 읽힐 글자 수를
@@ -146,7 +210,7 @@ def translate_lines(texts: list[str], src: str, dst: str, *,
     끝까지 못 받은 줄은 원문을 그대로 둔다 — 조용히 지우면 그 줄만 자막이 사라져
     나중에 찾기 어렵다. 몇 줄이 남았는지는 로그로 말한다.
     """
-    p = _provider(budget_usd)
+    p = _provider(budget_usd, engine)
     maxc = cue_max_chars(dst)
     result: list[str | None] = [None] * len(texts)
     sec_of = list(secs or [])

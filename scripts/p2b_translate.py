@@ -69,6 +69,8 @@ def main() -> None:
                          "«러시아» · «Русский» · «ru» 다 알아듣는다 (기본: scenes.json)")
     ap.add_argument("--force", action="store_true", help="자막이 있어도 다시 만든다")
     ap.add_argument("--budget", type=float, default=8.0, help="Claude 호출 상한(USD)")
+    ap.add_argument("--engine", default="claude", choices=["claude", "codex"],
+                    help="옮기는 데 쓸 로그인 — claude(기본) 또는 codex(ChatGPT)")
     a = ap.parse_args()
 
     P = scene_paths(a.task)
@@ -125,7 +127,8 @@ def main() -> None:
               f"(이 길이에 읽힐 수 있는 글자 수 약 {cap:,}자)")
 
         from scripts.translate import translate_lines
-        moved = translate_lines(flat, src_iso[:2], tag, budget_usd=a.budget)
+        moved = translate_lines(flat, src_iso[:2], tag, budget_usd=a.budget,
+                                engine=a.engine)
         if len(moved) != len(flat):
             die(f"줄 수가 어긋났습니다: 보낸 {len(flat)} · 받은 {len(moved)}")
 

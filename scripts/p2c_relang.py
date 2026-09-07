@@ -58,6 +58,8 @@ def main() -> None:
     ap.add_argument("--scenes", default="", help="이 씬만 (기본: 전부)")
     ap.add_argument("--force", action="store_true", help="이미 있어도 다시 옮긴다")
     ap.add_argument("--budget", type=float, default=8.0, help="Claude 호출 상한(USD)")
+    ap.add_argument("--engine", default="claude", choices=["claude", "codex"],
+                    help="옮기는 데 쓸 로그인 — claude(기본) 또는 codex(ChatGPT)")
     ap.add_argument("--no-glossary", action="store_true", help="용어집을 쓰지 않는다")
     a = ap.parse_args()
 
@@ -129,7 +131,7 @@ def main() -> None:
 
     from scripts.translate import translate_lines
     out = translate_lines(texts, src_tag, dst_tag, secs=secs, glossary=glos,
-                          budget_usd=a.budget)
+                          budget_usd=a.budget, engine=getattr(a, "engine", "claude"))
 
     # ── 되쓴다. **시각은 원본 그대로.** ─────────────────────────────────────
     over_total = 0
