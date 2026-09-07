@@ -94,16 +94,37 @@ def stub(ff: str, sec: float, out: Path) -> None:
         die(f"{out.name} 임시 아바타 만들기 실패: {(r.stderr or '')[-300:]}")
 
 
+_CODEC: dict[str, str] = {}
+
+
+def codec_of(src: Path) -> str:
+    """그 영상의 코덱 이름. 한 번 물어보고 기억한다."""
+    key = str(src.resolve())
+    if key not in _CODEC:
+        r = subprocess.run(
+            [ffprobe(), "-v", "error", "-select_streams", "v:0",
+             "-show_entries", "stream=codec_name", "-of", "csv=p=0", str(src)],
+            capture_output=True, text=True, encoding="utf-8", errors="replace")
+        _CODEC[key] = (r.stdout or "").strip().lower()
+    return _CODEC[key]
+
+
 def dec(src: Path) -> list[str]:
     r"""그 파일을 읽을 때 앞에 붙일 디코더 인자.
 
-    ★ **webm 의 vp9 알파는 기본 디코더가 안 꺼낸다.** ffmpeg 내장 vp9 디코더는
-      알파를 지원하지 않아 `alphaextract` 가 «Requested planes not available» 로
-      죽는다. `-c:v libvpx-vp9` 를 **입력 앞에** 붙여야 알파가 나온다
-      (2026-09-02 실측: HeyGen webm 은 ALPHA_MODE=1 인데 pix_fmt 는 yuv420p 로
-      보고된다 — 알파가 별도 스트림이라 그렇다).
+    ★ **vp9 알파는 기본 디코더가 안 꺼낸다.** ffmpeg 내장 vp9 디코더는 알파를
+      지원하지 않아 `alphaextract` 가 «Requested planes not available» 로 죽는다.
+      `-c:v libvpx-vp9` 를 **입력 앞에** 붙여야 알파가 나온다 (2026-09-02 실측:
+      HeyGen 파일은 ALPHA_MODE=1 인데 pix_fmt 는 yuv420p 로 보고된다 — 알파가
+      별도 스트림이라 그렇다).
+
+    ★ **확장자로 고르지 않는다.** 업체가 준 파일이 `…-IV.mp4` 인데 속은 VP9 +
+      ALPHA_MODE=1 이었다(2026-09-07 실측). 확장자만 보고 기본 디코더로 읽어
+      알파가 사라졌고, 테두리를 못 찾아 1080x1920 통째로 앉힌 뒤 **검정 배경이
+      슬라이드를 덮었다.** 오류는 한 줄도 안 났다. 이름은 사람이 바꿀 수 있고
+      업체도 틀리게 붙인다 — 속을 보고 정한다.
     """
-    return ["-c:v", "libvpx-vp9"] if src.suffix.lower() == ".webm" else []
+    return ["-c:v", "libvpx-vp9"] if codec_of(src) == "vp9" else []
 
 
 # ══ 영상 살펴보기 ═══════════════════════════════════════════════════════════

@@ -791,10 +791,13 @@ def main() -> None:
         av_path = (P.avatar / r["avatar"]).resolve()
         args = [ff, "-hide_banner", "-loglevel", "error", "-y",
                 "-loop", "1", "-framerate", "25", "-i", str(slide.resolve())]
-        # ★ webm 의 vp9 알파는 **libvpx-vp9 디코더로만** 나온다. 기본 디코더로
-        #   읽으면 알파가 통째로 사라져 사각형이 슬라이드를 덮는다(p4 의 dec() 참고).
-        if av_path.suffix.lower() == ".webm":
-            args += ["-c:v", "libvpx-vp9"]
+        # ★ vp9 알파는 **libvpx-vp9 디코더로만** 나온다. 기본 디코더로 읽으면
+        #   알파가 통째로 사라져 사각형이 슬라이드를 덮는다(p4 의 dec() 참고).
+        # ★ **확장자가 아니라 코덱으로 고른다.** 업체가 `…-IV.mp4` 로 준 파일이
+        #   속은 VP9 + ALPHA_MODE=1 이었다(2026-09-07 실측). 이름을 믿었더니
+        #   검정 상자가 슬라이드를 덮은 채로 여덟 씬이 구워졌다.
+        from scripts.p4_avatar import dec as av_dec
+        args += av_dec(av_path)
         if av_off > 0.001:
             args += ["-ss", f"{av_off:.3f}"]
         args += ["-i", str(av_path),
